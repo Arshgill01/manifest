@@ -7,6 +7,8 @@
              not process, and the comparison is unfair.
 - knowledge  the process was right (read the root-cause file, edited the root-cause
              function, re-ran the tests) but the fix itself was wrong.
+- budget     the wall clock ran out while the model was still answering and it never got to act
+             (slow/starved machine): not attributable to the model, rerun on a quiet machine.
 - process    everything else: never reached the root cause, edited the wrong place,
              looped, never re-ran tests after editing, gave up early, hit the limits.
 
@@ -53,6 +55,7 @@ def label_task(task_id: str, events: list[dict], meta: dict) -> dict:
 
     fmt_fail = [t for t in tools if not t.get("ok") and FORMAT_ERR.search(str(t.get("summary", "")))]
     truncated = [m for m in models if m.get("doneReason") == "length"]
+    interrupted = [m for m in models if m.get("error") or (not m.get("outTokens") and not m.get("doneReason"))]
     blocks = [e for e in events if e["type"] == "warden.block"]
 
     read_root = any(t["tool"] == "read_file" and _touches(t.get("args", {}).get("path"), root["file"]) for t in tools)
@@ -79,6 +82,8 @@ def label_task(task_id: str, events: list[dict], meta: dict) -> dict:
         reasons.append(f"{len(fmt_fail)} tool call(s) failed on format ({fmt_fail[0].get('summary', '')[:60]!r})")
     if truncated:
         reasons.append(f"{len(truncated)} truncated model output(s)")
+    if interrupted:
+        reasons.append(f"{len(interrupted)} model call(s) cut off by the time limit")
     if not tools:
         reasons.append("never called a tool")
     if not read_root:
@@ -100,7 +105,10 @@ def label_task(task_id: str, events: list[dict], meta: dict) -> dict:
         reasons.append(f"stopped: {stop}")
 
     format_share = (len(fmt_fail) + len(truncated)) / max(len(tools) + len(truncated), 1)
-    if (not tools and models) or format_share >= 0.5:
+    answered = len(models) - len(interrupted)
+    if interrupted and answered <= 1 and not good_edits:
+        label = "budget"
+    elif (not tools and models) or format_share >= 0.5:
         label = "format"
     elif in_function and reran_after_edit and not looped:
         label = "knowledge"

@@ -52,3 +52,8 @@ def test_looping_is_process_even_in_right_file():
                      model(), tool("run_tests"), end()]
     r = label_task(TID, events, META)
     assert r["label"] == "process" and any("repeated" in x for x in r["reasons"])
+
+
+def test_timed_out_before_acting_is_budget_not_format():
+    events = [{"type": "model.call", "role": "student", "outTokens": 0, "doneReason": None, "error": "TaskTimeout"}, end("timeout")]
+    assert label_task(TID, events, META)["label"] == "budget"
