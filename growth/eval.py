@@ -163,6 +163,7 @@ def run_one(task_id: str, *, split: str | None, mode: str, round: int, log: Even
             ms=ms,
             judge=verdict,
             selfReportedDone=stats.get("selfReportedDone"),
+            stopReason=stats.get("stopReason"),
             overtime=ms > (max_seconds + 30) * 1000,
             **({"error": error} if error else {}),
         )
