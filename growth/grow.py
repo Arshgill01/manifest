@@ -68,8 +68,8 @@ class Paths:
         return cls(REGISTRY, GROWN_DIR, SKILLS_DIR, WORK_DIR / "candidates" / run_id, dry=False)
 
     @classmethod
-    def scratch(cls, run_id: str, source_registry: Path = REGISTRY) -> "Paths":
-        base = WORK_DIR / f"dry-run-{run_id}"
+    def scratch(cls, run_id: str, source_registry: Path = REGISTRY, root: Path | None = None) -> "Paths":
+        base = (root or WORK_DIR) / f"dry-run-{run_id}"
         p = cls(base / "routines" / "registry.json", base / "routines" / "grown", base / "skills", base / "candidates", dry=True)
         p.registry.parent.mkdir(parents=True, exist_ok=True)
         save_registry(p.registry, load_registry(source_registry) if source_registry.exists() else SEED_REGISTRY)
@@ -344,6 +344,7 @@ class GrowConfig:
     splits: dict | None = None
     log_path: Path | None = None
     label: str = "growth"
+    scratch_root: Path | None = None  # default .manifest/work/
     student: str = field(default_factory=lambda: os.environ.get("STUDENT_MODEL", "qwen3.5:4b"))
 
     @property
@@ -359,7 +360,7 @@ def grow(
     warden: tuple[Callable[..., list], Callable[..., dict]] | None = None,
 ) -> dict:
     run_id = new_run_id(cfg.label + ("-dryrun" if cfg.scratch else ""))
-    paths = Paths.scratch(run_id) if cfg.scratch else Paths.real(run_id)
+    paths = Paths.scratch(run_id, root=cfg.scratch_root) if cfg.scratch else Paths.real(run_id)
     log_path = cfg.log_path or ((paths.registry.parent.parent / "run.jsonl") if cfg.scratch else RUNS_DIR / f"{run_id}.jsonl")
     log = EventLog(log_path)
 
