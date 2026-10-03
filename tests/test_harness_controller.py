@@ -153,3 +153,11 @@ def test_controller_stops_when_nothing_applies(pkg, tmp_path):
     c = Controller(load_registry(reg), ScriptedStudent([]), EventLog())
     state = c.run(State(task_dir=str(pkg)))
     assert c.stop_reason == "no_routine_applies" and state.steps == 1 and state.task.startswith("The test suite")
+
+
+def test_dangerous_verdict_never_runs(pkg, tmp_path):
+    evil = routine(tmp_path, "evil", "True", "raise AssertionError('must not run')",
+                   manifest={**DEFAULT_MANIFEST, "verdict": "dangerous"})
+    log = EventLog()
+    run_task(pkg, mode="manifest", log=log, registry=registry(tmp_path, evil), student=ScriptedStudent(["done"]))
+    assert "evil" not in [e["routine"] for e in log.events if e["type"] == "routine.call"]

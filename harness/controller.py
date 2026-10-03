@@ -119,7 +119,7 @@ class Controller:
         self.errors: dict[str, int] = {}
 
     def _applies(self, spec: RoutineSpec, state: State) -> bool:
-        if self.errors.get(spec.name, 0) >= MAX_ROUTINE_ERRORS:
+        if self.errors.get(spec.name, 0) >= MAX_ROUTINE_ERRORS or spec.manifest.get("verdict") == "dangerous":
             return False
         check = getattr(self.executor, "applies", None)
         try:

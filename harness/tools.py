@@ -225,7 +225,7 @@ class Tools:
             out = out.replace(f"{self.workdir}/", "")
             return {**parse_pytest(out, self.workdir), "exitCode": code, "output": _truncate(out)}
         return self._logged("run_tests", args, go,
-                            lambda r: (True, f"{r['failed']} failed, {r['passed']} passed" + (f" ({selector})" if selector else "")))
+                            lambda r: (True, f"{r['failed']} failed, {r['passed']} passed" + (f" ({selector})" if selector and selector.strip() not in EMPTY_SELECTORS else "")))
 
     def _selector_args(self, selector: str) -> list[str]:
         try:
