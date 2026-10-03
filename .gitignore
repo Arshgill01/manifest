@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+node_modules/
+gui/dist/
+.DS_Store
+# scratch copies of tasks the harness edits; never commit
+.manifest/work/
+.manifest/cache/*.tmp
