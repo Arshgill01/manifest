@@ -28,13 +28,13 @@ Build order (SPEC §10) and merge order: **A+B → C → D**, E anytime. Checkpo
   A first attempt at 120 s was invalid: the laptop was swapping (6.3 GB) and calls never returned -> labelled `budget`.
 
 ## B — harness (`harness/`, `routines/seed/`, `routines/registry.json`)
-- [ ] `student.py` Ollama client: `think=False`, temp 0, `num_ctx 16384`, 768 out tokens; `.chat` + `.ask` (pydantic-validated, re-ask once); logs `model.call` with tokens/ms
-- [ ] `tools.py` 5 tools, path jail to workdir, manifest enforcement + `warden.block`, pytest output parsed into failures/frames
-- [ ] `loop.py` baseline tool-calling loop (12 steps / 120 s)
-- [ ] `state.py`, `controller.py` (registry order, first `applies`, Executor protocol), seed routines `start` + `ask-student` ONLY
-- [ ] `run.py` `run_task` per CONTRACT 2.3; `python -m harness.run <taskdir> --mode baseline|manifest`
-- [ ] Smoke: baseline on 1 real task end-to-end with events
-- [ ] `tests/test_harness_*.py` (fake student)
+- [x] `student.py` Ollama client: `think=False`, temp 0, `num_ctx 16384`, 768 out tokens; `.chat` + `.ask` (pydantic-validated, re-ask once); logs `model.call` with tokens/ms
+- [x] `tools.py` 5 tools, path jail to workdir, manifest enforcement + `warden.block`, pytest output parsed into failures/frames
+- [x] `loop.py` baseline tool-calling loop (12 steps / 120 s)
+- [x] `state.py`, `controller.py` (registry order, first `applies`, Executor protocol), seed routines `start` + `ask-student` ONLY
+- [x] `run.py` `run_task` per CONTRACT 2.3; `python -m harness.run <taskdir> --mode baseline|manifest`
+- [ ] Smoke: baseline on 1 real task end-to-end with events — done live on hand-made `tinyledger` (`python -m harness.smoke`, baseline + manifest both pass); re-run on an A task after merge
+- [x] `tests/test_harness_*.py` (fake student)
 
 ## C — grow (`growth/grow.py`, `growth/gate.py`, `harness/teacher.py`)
 - [ ] Teacher client (DeepSeek, OpenAI-compatible), JSON schema validation + 1 retry, cost tracking, `model.call` role=teacher

@@ -1,0 +1,9 @@
+{
+  "skill": "start",
+  "read": ["**"],
+  "write": [],
+  "commands": [],
+  "network": false,
+  "findings": [],
+  "verdict": "ok"
+}

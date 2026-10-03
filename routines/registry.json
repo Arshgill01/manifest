@@ -1,0 +1,4 @@
+[
+  {"name": "start", "path": "routines/seed/start", "source": "seed"},
+  {"name": "ask-student", "path": "routines/seed/ask-student", "source": "seed"}
+]
