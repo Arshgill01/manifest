@@ -119,3 +119,36 @@ MUTATIONS += [
        "    return (qty + pack - 1) // pack * pack\n",
        "    return (qty + pack) // pack * pack\n"),
 ]
+
+B = "src/slotbook/"
+
+MUTATIONS += [
+    # ---------------- slotbook ----------------
+    _m("closes-default", "slotbook", "Room", "wrong-default", "deep-call-chain",
+       B + "resources.py",
+       "    closes: time = time(18)\n",
+       "    closes: time = time(17)\n"),
+    _m("gaps-boundary", "slotbook", "gaps", "wrong-comparison", "misleading-surface regression-trap",
+       B + "timerange.py",
+       "        if r.start > cursor:\n",
+       "        if r.start >= cursor:\n",
+       trap=[Edit(B + "timerange.py",
+                  "        if not self.start < self.end:\n            raise InvalidRange(f\"empty or reversed range {self.start} - {self.end}\")\n",
+                  "")]),
+    _m("directory-return", "slotbook", "Directory.get", "missing-return", "misleading-surface",
+       B + "resources.py",
+       "        return self._rooms[name]\n",
+       "        self._rooms[name]\n"),
+    _m("series-range", "slotbook", "occurrences", "off-by-one", "one-root-many",
+       B + "recurrence.py",
+       "    return [first.shift(every * i) for i in range(count)]\n",
+       "    return [first.shift(every * i) for i in range(1, count)]\n"),
+    _m("overlap-adjacent", "slotbook", "TimeRange.overlaps", "wrong-comparison", "one-root-many",
+       B + "timerange.py",
+       "        return self.start < other.end and other.start < self.end\n",
+       "        return self.start <= other.end and other.start <= self.end\n"),
+    _m("zone-sign", "slotbook", "zone", "inverted-sign", "one-root-many",
+       B + "zones.py",
+       "        return timezone(timedelta(minutes=OFFSETS_MINUTES[name]), name)\n",
+       "        return timezone(timedelta(minutes=-OFFSETS_MINUTES[name]), name)\n"),
+]
