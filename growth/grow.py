@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import functools
 import hashlib
 import json
 import os
@@ -204,7 +205,7 @@ def build_teacher_context(round: int, entries: list[dict], traces: list[dict], h
 
 def banned_terms(splits: dict) -> list[str]:
     """Strings that must never reach the teacher: every held-out task id and the held-out-only domain."""
-    terms = list(splits.get("heldout", []))
+    terms = sorted(set(splits.get("heldout", [])) | set(splits.get("heldoutAll", [])))
     novel = splits.get("novelDomain")
     seen = " ".join(splits.get("train", []) + splits.get("gate", []))
     if novel and novel not in seen:
@@ -317,9 +318,15 @@ def resolve_warden(stub: bool) -> tuple[Callable[..., list], Callable[..., dict]
     return stubs.warden_scan, stubs.warden_build, "stub"
 
 
-def load_splits(stub: bool) -> dict:
+def load_splits(stub: bool, profile: str = "core") -> dict:
+    """Task ids for one profile of tasks/splits.json (`core` 3/3/3 or `full` 12/6/8)."""
     if SPLITS.exists():
-        return json.loads(SPLITS.read_text(encoding="utf-8"))
+        data = json.loads(SPLITS.read_text(encoding="utf-8"))
+        chosen = data.get("profiles", {}).get(profile)
+        if chosen is None:
+            return data
+        # every held-out id of every profile stays banned from the teacher, not just this profile's
+        return {**chosen, "novelDomain": data.get("novelDomain"), "heldoutAll": data.get("heldout", [])}
     if stub:
         return dict(stubs.STUB_SPLITS)
     raise SystemExit(f"{rel(SPLITS)} missing; merge track A or pass --stub-runner")
@@ -344,6 +351,8 @@ class GrowConfig:
     splits: dict | None = None
     log_path: Path | None = None
     label: str = "growth"
+    profile: str = "core"     # tasks/splits.json profile
+    max_seconds: int = 240    # per-task wall clock, same for baseline and grown harness
     scratch_root: Path | None = None  # default .manifest/work/
     student: str = field(default_factory=lambda: os.environ.get("STUDENT_MODEL", "qwen3.5:4b"))
 
@@ -364,7 +373,10 @@ def grow(
     log_path = cfg.log_path or ((paths.registry.parent.parent / "run.jsonl") if cfg.scratch else RUNS_DIR / f"{run_id}.jsonl")
     log = EventLog(log_path)
 
-    run_split = run_split or resolve_run_split(cfg.stub_runner)
+    if run_split is None:
+        run_split = resolve_run_split(cfg.stub_runner)
+        if not cfg.stub_runner:
+            run_split = functools.partial(run_split, max_seconds=cfg.max_seconds)
     if warden is not None:
         scan, build, warden_impl = (*warden, "injected")
     else:
@@ -377,7 +389,7 @@ def grow(
     if not paths.registry.exists():
         raise SystemExit(f"{rel(paths.registry)} missing; merge track B (seed registry) or use --dry-run")
 
-    splits = cfg.splits or load_splits(cfg.stub_runner)
+    splits = cfg.splits or load_splits(cfg.stub_runner, cfg.profile)
     train_ids = cfg.train_ids or list(splits["train"])
     gate_ids = cfg.gate_ids or list(splits["gate"])
     heldout_ids = cfg.heldout_ids or list(splits["heldout"])
@@ -561,6 +573,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-traces", type=int, default=6)
     p.add_argument("--round0", choices=("all", "heldout", "none"), default="all", help="which splits to (cache-)run in baseline mode as round 0")
     p.add_argument("--heldout-every-round", action="store_true", help="re-run held-out even when the harness didn't change")
+    p.add_argument("--profile", choices=("core", "full"), default="core", help="task split profile from tasks/splits.json")
+    p.add_argument("--max-seconds", type=int, default=240, help="per-task wall clock for every harness run")
     p.add_argument("--log", type=Path, help="event log path (default .manifest/runs/<id>-growth.jsonl)")
     a = p.parse_args(argv)
 
@@ -568,6 +582,7 @@ def main(argv: list[str] | None = None) -> int:
         rounds=a.rounds, fake_teacher=a.fake_teacher, stub_runner=a.stub_runner, dry_run=a.dry_run,
         train_ids=_ids(a.train_tasks), gate_ids=_ids(a.gate_tasks), heldout_ids=_ids(a.heldout_tasks),
         max_traces=a.max_traces, round0=a.round0, heldout_every_round=a.heldout_every_round, log_path=a.log,
+        profile=a.profile, max_seconds=a.max_seconds,
     )
     try:
         summary = grow(cfg)
