@@ -12,15 +12,17 @@ Build order (SPEC §10) and merge order: **A+B → C → D**, E anytime. Checkpo
 - [ ] Backup demo video 2:15 · README numbers 3:00 · MLH submit 3:50
 
 ## A — tasks (`tasks/`, `growth/eval.py`)
-- [ ] Deterministic generator `tasks/gen.py` (seed 1337) → `tasks/generated/<id>/`, `splits.json`, `index.json` (root cause outside task dirs)
-- [ ] 5 domains as real multi-module packages (5–8 modules, 20–40 tests each): ledgerly, stockroom, slotbook, ratekeeper, csvflow
-- [ ] Bug shapes: deep call chain · one root cause/many failures (3–6) · regression trap · misleading surface; mutation operators per SPEC §3
-- [ ] 26 tasks: train 12 / gate 6 / heldout 8 (2 from a domain absent from train+gate)
-- [ ] Self-check: every pristine task fails, reference fix passes, fix is ≤3 lines, failing count matches shape
-- [ ] Held-out includes a `ledgerly` deep-call-chain + regression-trap task for the live demo (bug in `money.py`)
-- [ ] `growth/eval.py` runner per CONTRACT 2.2 (workdir copy, fakehome HOME, independent pass judging, tests-untouched check, round-0 cache)
-- [ ] Failure labeller: classify round-0 failures as process vs knowledge for the checkpoint
-- [ ] `tests/test_tasks_*.py`
+- [x] Deterministic generator `tasks/gen.py` (seed 1337) → `tasks/generated/<id>/`, `splits.json`, `index.json` (root cause outside task dirs)
+- [x] 5 domains as real multi-module packages (5–8 modules, 20–40 tests each): ledgerly, stockroom, slotbook, ratekeeper, csvflow
+- [x] Bug shapes: deep call chain · one root cause/many failures (spec 3–6; verified 3–8; only ledgerly rounding-mode has 8) · regression trap · misleading surface; mutation operators per SPEC §3
+- [x] 26 tasks: train 12 / gate 6 / heldout 8 (2 from a domain absent from train+gate)
+- [x] Self-check: every pristine task fails, reference fix passes, fix is ≤3 lines, failing count matches shape
+- [x] Held-out includes a `ledgerly` deep-call-chain + regression-trap task for the live demo (bug in `money.py`)
+- [x] `growth/eval.py` runner per CONTRACT 2.2 (workdir copy, fakehome HOME, independent pass judging, tests-untouched check, round-0 cache)
+- [x] Failure labeller (`tasks/labels.py`: process / knowledge / format): classify round-0 failures as process vs knowledge for the checkpoint
+- [x] `tests/test_tasks_*.py`
+- [x] `core` profile (3/3/3) alongside `full` (12/6/8): `--profile core|full`
+- [ ] Round-0 checkpoint on real student (running in `manifest-wt/integ`)
 
 ## B — harness (`harness/`, `routines/seed/`, `routines/registry.json`)
 - [ ] `student.py` Ollama client: `think=False`, temp 0, `num_ctx 16384`, 768 out tokens; `.chat` + `.ask` (pydantic-validated, re-ask once); logs `model.call` with tokens/ms
