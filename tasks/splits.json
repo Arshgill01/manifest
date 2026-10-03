@@ -2,53 +2,87 @@
   "seed": 1337,
   "novelDomain": "csvflow",
   "train": [
-    "stockroom-01",
-    "ledgerly-02",
-    "stockroom-02",
-    "ledgerly-03",
-    "stockroom-03",
-    "ledgerly-04",
+    "ratekeeper-03",
     "stockroom-04",
-    "ledgerly-05",
-    "stockroom-05",
-    "ledgerly-06",
-    "stockroom-06",
-    "ledgerly-07"
+    "ledgerly-03",
+    "slotbook-06",
+    "stockroom-03",
+    "ratekeeper-05",
+    "slotbook-02",
+    "ratekeeper-04",
+    "stockroom-01",
+    "ratekeeper-01",
+    "slotbook-05",
+    "stockroom-06"
   ],
-  "gate": [],
+  "gate": [
+    "ledgerly-05",
+    "slotbook-01",
+    "stockroom-02",
+    "ledgerly-07",
+    "slotbook-03",
+    "ledgerly-06"
+  ],
   "heldout": [
-    "ledgerly-01"
+    "csvflow-01",
+    "csvflow-02",
+    "ledgerly-01",
+    "slotbook-04",
+    "ratekeeper-02",
+    "ledgerly-04",
+    "stockroom-05",
+    "ledgerly-02"
   ],
   "profiles": {
     "full": {
       "train": [
-        "stockroom-01",
-        "ledgerly-02",
-        "stockroom-02",
-        "ledgerly-03",
-        "stockroom-03",
-        "ledgerly-04",
+        "ratekeeper-03",
         "stockroom-04",
-        "ledgerly-05",
-        "stockroom-05",
-        "ledgerly-06",
-        "stockroom-06",
-        "ledgerly-07"
+        "ledgerly-03",
+        "slotbook-06",
+        "stockroom-03",
+        "ratekeeper-05",
+        "slotbook-02",
+        "ratekeeper-04",
+        "stockroom-01",
+        "ratekeeper-01",
+        "slotbook-05",
+        "stockroom-06"
       ],
-      "gate": [],
+      "gate": [
+        "ledgerly-05",
+        "slotbook-01",
+        "stockroom-02",
+        "ledgerly-07",
+        "slotbook-03",
+        "ledgerly-06"
+      ],
       "heldout": [
-        "ledgerly-01"
+        "csvflow-01",
+        "csvflow-02",
+        "ledgerly-01",
+        "slotbook-04",
+        "ratekeeper-02",
+        "ledgerly-04",
+        "stockroom-05",
+        "ledgerly-02"
       ]
     },
     "core": {
       "train": [
-        "ledgerly-02",
-        "ledgerly-03",
-        "ledgerly-04"
+        "ratekeeper-03",
+        "ratekeeper-04",
+        "ratekeeper-01"
       ],
-      "gate": [],
+      "gate": [
+        "ledgerly-05",
+        "ledgerly-07",
+        "ledgerly-06"
+      ],
       "heldout": [
-        "ledgerly-01"
+        "ledgerly-01",
+        "csvflow-01",
+        "ledgerly-04"
       ]
     }
   }

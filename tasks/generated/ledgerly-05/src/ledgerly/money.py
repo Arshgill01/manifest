@@ -97,7 +97,7 @@ def allocate(amount: Money, weights: Sequence) -> list[Money]:
     raw = [cents * w / total_weight for w in ws]
     shares = [int(r) for r in raw]
     leftover = cents - sum(shares)
-    order = sorted(range(len(ws)), key=lambda i: raw[i] - shares[i], reverse=True)
+    order = sorted(range(len(ws)), key=lambda i: raw[i] - shares[i], reverse=False)
     for i in order[:leftover]:
         shares[i] += 1
     return [Money(Decimal(c) / 100, amount.currency) for c in shares]

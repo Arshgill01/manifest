@@ -46,8 +46,8 @@ class Inventory:
         self.history.append(("ship", sku, location, -qty))
 
     def transfer(self, sku: str, qty: int, source: str, dest: str) -> None:
-        self.ship(sku, qty, source)
-        self.receive(sku, qty, dest)
+        self.ship(sku, qty, dest)
+        self.receive(sku, qty, source)
 
     def pick(self, sku: str, qty: int) -> list[tuple[str, int]]:
         """Ship `qty` drawing from locations in name order. All-or-nothing."""

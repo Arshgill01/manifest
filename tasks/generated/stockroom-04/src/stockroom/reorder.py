@@ -14,7 +14,7 @@ def position(product: Product, book: ReservationBook, incoming: int = 0) -> int:
 
 
 def needs_reorder(product: Product, pos: int) -> bool:
-    return pos < product.reorder_point
+    return pos <= product.reorder_point
 
 
 def round_to_pack(qty: int, pack: int) -> int:

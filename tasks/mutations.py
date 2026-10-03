@@ -152,3 +152,44 @@ MUTATIONS += [
        "        return timezone(timedelta(minutes=OFFSETS_MINUTES[name]), name)\n",
        "        return timezone(timedelta(minutes=-OFFSETS_MINUTES[name]), name)\n"),
 ]
+
+R = "src/ratekeeper/"
+
+MUTATIONS += [
+    # ---------------- ratekeeper ----------------
+    _m("wait-swap", "ratekeeper", "TokenBucket.wait_time", "swapped-args", "deep-call-chain",
+       R + "bucket.py",
+       "        return deficit / self.rate\n",
+       "        return self.rate / deficit\n"),
+    _m("sliding-evict", "ratekeeper", "SlidingWindowLog._evict", "wrong-comparison", "regression-trap",
+       R + "window.py",
+       "        while self.log and self.log[0] <= now - self.window:\n",
+       "        while self.log and self.log[0] < now - self.window:\n",
+       trap=[Edit(R + "window.py", "        if len(self.log) < self.limit:\n", "        if len(self.log) <= self.limit:\n")]),
+    _m("cost-default", "ratekeeper", "RateLimiter.check", "wrong-default", "one-root-many",
+       R + "limiter.py",
+       "    def check(self, key: str, plan_name: str, cost: int = 1) -> Decision:\n",
+       "    def check(self, key: str, plan_name: str, cost: int = 0) -> Decision:\n"),
+    _m("plan-return", "ratekeeper", "get_plan", "missing-return", "misleading-surface",
+       R + "quota.py",
+       "    return PLANS[name]\n",
+       "    PLANS[name]\n"),
+    _m("quota-remaining", "ratekeeper", "DailyQuota.remaining", "off-by-one", "one-root-many",
+       R + "quota.py",
+       "        return max(0, self.limit - self.used_today())\n",
+       "        return max(0, self.limit - self.used_today() - 1)\n"),
+]
+
+C = "src/csvflow/"
+
+MUTATIONS += [
+    # ---------------- csvflow (held-out only: a domain the teacher never sees) ----------------
+    _m("line-numbers", "csvflow", "read_rows", "off-by-one", "deep-call-chain",
+       C + "reader.py",
+       "    for line, fields in enumerate(reader, start=2):\n",
+       "    for line, fields in enumerate(reader, start=1):\n"),
+    _m("group-return", "csvflow", "group_by", "missing-return", "misleading-surface",
+       C + "aggregate.py",
+       "        groups.setdefault(row[key], []).append(row)\n    return groups\n",
+       "        groups.setdefault(row[key], []).append(row)\n"),
+]

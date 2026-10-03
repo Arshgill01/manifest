@@ -26,7 +26,7 @@ class Inventory:
     def on_hand(self, sku: str, location: str | None = None) -> int:
         """Units physically in stock, at one location or across all of them."""
         if location is None:
-            return sum(q for (s, _), q in self._on_hand.items() if s == sku)
+            return sum(q for (s, _), q in self._on_hand.items() if s != sku)
         return self._on_hand.get((sku, location), 0)
 
     def locations(self, sku: str) -> list[str]:

@@ -30,7 +30,7 @@ RATES = {
 
 def lookup(code: str) -> TaxRate:
     try:
-        return RATES[code]
+        RATES[code]
     except KeyError:
         raise UnknownTaxCode(code) from None
 

@@ -257,16 +257,25 @@ def assign(built: list[Built]) -> tuple[dict[str, str], dict[str, list[str]]]:
                 splits["heldout"].append(ids[b.mutation.key])
             else:
                 pool.append(b)
-    # round-robin over domains so every split mixes domains and shapes
-    pool.sort(key=lambda b: (by_domain[b.mutation.domain].index(b), b.mutation.domain))
+    # Stratify by bug shape: walk shapes in a fixed order and deal tasks out in a 12:6:6 pattern,
+    # so every split sees every shape (the teacher must meet each failure kind in train).
+    pattern = ["train", "gate", "train", "heldout"]
+    by_shape: dict[str, list[Built]] = {}
     for b in pool:
-        tid = ids[b.mutation.key]
-        for split in ("train", "gate", "heldout"):
-            if len(splits[split]) < sizes[split]:
-                splits[split].append(tid)
-                break
-        else:
-            raise ValueError(f"too many tasks for profile full: {tid}")
+        by_shape.setdefault(b.mutation.shapes[0], []).append(b)
+    cursor = 0
+    for shape in SHAPES:
+        group = sorted(by_shape.get(shape, []), key=lambda b: ids[b.mutation.key])
+        rng.shuffle(group)
+        for b in group:
+            for k in range(len(pattern)):
+                split = pattern[(cursor + k) % len(pattern)]
+                if len(splits[split]) < sizes[split]:
+                    splits[split].append(ids[b.mutation.key])
+                    cursor = (cursor + k + 1) % len(pattern)
+                    break
+            else:
+                raise ValueError(f"too many tasks for profile full: {ids[b.mutation.key]}")
     return ids, splits
 
 
@@ -274,18 +283,16 @@ def core_profile(splits: dict[str, list[str]], index: dict[str, dict]) -> dict[s
     """Small fast subset: 2 train domains, demo task + one novel-domain task in held-out."""
     want = PROFILES["core"]
     core: dict[str, list[str]] = {}
+    priority = ("deep-call-chain", "regression-trap", "misleading-surface", "one-root-many")
     for split in ("train", "gate"):
         picked: list[str] = []
-        shapes: set[str] = set()
-        # prefer covering new shapes, ledgerly first (the demo domain)
-        for tid in sorted(splits[split], key=lambda t: (index[t]["domain"] != "ledgerly", t)):
-            new = set(index[tid]["shapes"]) - shapes
-            if new and len(picked) < want[split]:
-                picked.append(tid)
-                shapes |= set(index[tid]["shapes"])
-        for tid in splits[split]:
-            if len(picked) < want[split] and tid not in picked:
-                picked.append(tid)
+        pool = sorted(splits[split], key=lambda t: (index[t]["domain"] != "ledgerly", t))
+        # one task per process-heavy shape first, in priority order
+        for shape in priority:
+            match = next((t for t in pool if t not in picked and shape in index[t]["shapes"]), None)
+            if match and len(picked) < want[split]:
+                picked.append(match)
+        picked += [t for t in pool if t not in picked][: want[split] - len(picked)]
         core[split] = picked
     held = [t for t in splits["heldout"] if index[t].get("demo")]
     held += [t for t in splits["heldout"] if index[t]["domain"] == NOVEL_DOMAIN][:1]

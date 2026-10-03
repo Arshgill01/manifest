@@ -19,7 +19,7 @@ def needs_reorder(product: Product, pos: int) -> bool:
 
 def round_to_pack(qty: int, pack: int) -> int:
     """Smallest multiple of `pack` that is >= qty."""
-    return (qty + pack) // pack * pack
+    return (qty + pack - 1) // pack * pack
 
 
 def suggested_order(product: Product, pos: int) -> int:

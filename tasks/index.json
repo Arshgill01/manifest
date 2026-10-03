@@ -1,4 +1,79 @@
 {
+  "csvflow-01": {
+    "domain": "csvflow",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "missing-return",
+    "mutationKey": "group-return",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/csvflow/aggregate.py",
+      "function": "group_by",
+      "line": 12,
+      "span": [
+        8,
+        11
+      ]
+    },
+    "failingTests": [
+      "tests/test_aggregate.py::test_group_by_preserves_order",
+      "tests/test_aggregate.py::test_summarize_sorted_by_key",
+      "tests/test_pipeline.py::test_full_pipeline"
+    ],
+    "passingTests": 18,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/csvflow/aggregate.py:26, tests/test_aggregate.py:8; defect in group_by"
+    },
+    "fix": [
+      {
+        "file": "src/csvflow/aggregate.py",
+        "search": "        groups.setdefault(row[key], []).append(row)\n",
+        "replace": "        groups.setdefault(row[key], []).append(row)\n    return groups\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "csvflow-02": {
+    "domain": "csvflow",
+    "bugShape": "deep-call-chain",
+    "shapes": [
+      "deep-call-chain"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "line-numbers",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/csvflow/reader.py",
+      "function": "read_rows",
+      "line": 29,
+      "span": [
+        19,
+        37
+      ]
+    },
+    "failingTests": [
+      "tests/test_pipeline.py::test_full_pipeline",
+      "tests/test_validate.py::test_issues_point_at_file_lines"
+    ],
+    "passingTests": 19,
+    "evidence": {
+      "deep-call-chain": "failures only in tests/test_pipeline.py, tests/test_validate.py; bug in src/csvflow/reader.py"
+    },
+    "fix": [
+      {
+        "file": "src/csvflow/reader.py",
+        "search": "    for line, fields in enumerate(reader, start=1):\n",
+        "replace": "    for line, fields in enumerate(reader, start=2):\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
   "ledgerly-01": {
     "domain": "ledgerly",
     "bugShape": "deep-call-chain",
@@ -48,6 +123,59 @@
   },
   "ledgerly-02": {
     "domain": "ledgerly",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "missing-return",
+    "mutationKey": "lookup-return",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/tax.py",
+      "function": "lookup",
+      "line": 33,
+      "span": [
+        31,
+        35
+      ]
+    },
+    "failingTests": [
+      "tests/test_invoice.py::test_tax_breakdown_without_coupon",
+      "tests/test_invoice.py::test_grand_total_without_coupon",
+      "tests/test_invoice.py::test_percent_coupon_is_spread_before_tax",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent",
+      "tests/test_invoice.py::test_coupon_cannot_exceed_subtotal",
+      "tests/test_invoice.py::test_inclusive_tax_not_added_twice",
+      "tests/test_invoice.py::test_currency_and_summary",
+      "tests/test_line_items.py::test_gross_and_volume_discount",
+      "tests/test_line_items.py::test_inclusive_line",
+      "tests/test_line_items.py::test_half_cent_line_tax",
+      "tests/test_payments.py::test_partial_then_full_payment",
+      "tests/test_payments.py::test_status_on_and_after_due_date",
+      "tests/test_payments.py::test_overpayment_rejected",
+      "tests/test_payments.py::test_aging_buckets",
+      "tests/test_tax.py::test_standard_and_city_rates",
+      "tests/test_tax.py::test_half_cent_tax_rounds_up",
+      "tests/test_tax.py::test_split_inclusive_price",
+      "tests/test_tax.py::test_inclusive_tax_on_gross"
+    ],
+    "passingTests": 22,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/ledgerly/line_items.py:43, src/ledgerly/tax.py:40, src/ledgerly/tax.py:46; defect in lookup"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/tax.py",
+        "search": "        RATES[code]\n",
+        "replace": "        return RATES[code]\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ledgerly-03": {
+    "domain": "ledgerly",
     "bugShape": "one-root-many",
     "shapes": [
       "one-root-many"
@@ -94,97 +222,7 @@
     "trap": [],
     "note": ""
   },
-  "ledgerly-03": {
-    "domain": "ledgerly",
-    "bugShape": "misleading-surface",
-    "shapes": [
-      "misleading-surface"
-    ],
-    "mutation": "missing-return",
-    "mutationKey": "lookup-return",
-    "split": "train",
-    "demo": false,
-    "rootCause": {
-      "file": "src/ledgerly/tax.py",
-      "function": "lookup",
-      "line": 33,
-      "span": [
-        31,
-        35
-      ]
-    },
-    "failingTests": [
-      "tests/test_invoice.py::test_tax_breakdown_without_coupon",
-      "tests/test_invoice.py::test_grand_total_without_coupon",
-      "tests/test_invoice.py::test_percent_coupon_is_spread_before_tax",
-      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent",
-      "tests/test_invoice.py::test_coupon_cannot_exceed_subtotal",
-      "tests/test_invoice.py::test_inclusive_tax_not_added_twice",
-      "tests/test_invoice.py::test_currency_and_summary",
-      "tests/test_line_items.py::test_gross_and_volume_discount",
-      "tests/test_line_items.py::test_inclusive_line",
-      "tests/test_line_items.py::test_half_cent_line_tax",
-      "tests/test_payments.py::test_partial_then_full_payment",
-      "tests/test_payments.py::test_status_on_and_after_due_date",
-      "tests/test_payments.py::test_overpayment_rejected",
-      "tests/test_payments.py::test_aging_buckets",
-      "tests/test_tax.py::test_standard_and_city_rates",
-      "tests/test_tax.py::test_half_cent_tax_rounds_up",
-      "tests/test_tax.py::test_split_inclusive_price",
-      "tests/test_tax.py::test_inclusive_tax_on_gross"
-    ],
-    "passingTests": 22,
-    "evidence": {
-      "misleading-surface": "crashes surface at src/ledgerly/line_items.py:43, src/ledgerly/tax.py:40, src/ledgerly/tax.py:46; defect in lookup"
-    },
-    "fix": [
-      {
-        "file": "src/ledgerly/tax.py",
-        "search": "        RATES[code]\n",
-        "replace": "        return RATES[code]\n"
-      }
-    ],
-    "trap": [],
-    "note": ""
-  },
   "ledgerly-04": {
-    "domain": "ledgerly",
-    "bugShape": "deep-call-chain",
-    "shapes": [
-      "deep-call-chain"
-    ],
-    "mutation": "inverted-condition",
-    "mutationKey": "alloc-order",
-    "split": "train",
-    "demo": false,
-    "rootCause": {
-      "file": "src/ledgerly/money.py",
-      "function": "allocate",
-      "line": 100,
-      "span": [
-        88,
-        103
-      ]
-    },
-    "failingTests": [
-      "tests/test_discounts.py::test_spread_is_proportional_and_keeps_every_cent",
-      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent"
-    ],
-    "passingTests": 38,
-    "evidence": {
-      "deep-call-chain": "failures only in tests/test_discounts.py, tests/test_invoice.py; bug in src/ledgerly/money.py"
-    },
-    "fix": [
-      {
-        "file": "src/ledgerly/money.py",
-        "search": "key=lambda i: raw[i] - shares[i], reverse=False)",
-        "replace": "key=lambda i: raw[i] - shares[i], reverse=True)"
-      }
-    ],
-    "trap": [],
-    "note": ""
-  },
-  "ledgerly-05": {
     "domain": "ledgerly",
     "bugShape": "one-root-many",
     "shapes": [
@@ -192,7 +230,7 @@
     ],
     "mutation": "wrong-comparison",
     "mutationKey": "coupon-cap",
-    "split": "train",
+    "split": "heldout",
     "demo": false,
     "rootCause": {
       "file": "src/ledgerly/discounts.py",
@@ -222,6 +260,43 @@
     "trap": [],
     "note": ""
   },
+  "ledgerly-05": {
+    "domain": "ledgerly",
+    "bugShape": "deep-call-chain",
+    "shapes": [
+      "deep-call-chain"
+    ],
+    "mutation": "inverted-condition",
+    "mutationKey": "alloc-order",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/money.py",
+      "function": "allocate",
+      "line": 100,
+      "span": [
+        88,
+        103
+      ]
+    },
+    "failingTests": [
+      "tests/test_discounts.py::test_spread_is_proportional_and_keeps_every_cent",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent"
+    ],
+    "passingTests": 38,
+    "evidence": {
+      "deep-call-chain": "failures only in tests/test_discounts.py, tests/test_invoice.py; bug in src/ledgerly/money.py"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/money.py",
+        "search": "key=lambda i: raw[i] - shares[i], reverse=False)",
+        "replace": "key=lambda i: raw[i] - shares[i], reverse=True)"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
   "ledgerly-06": {
     "domain": "ledgerly",
     "bugShape": "misleading-surface",
@@ -230,7 +305,7 @@
     ],
     "mutation": "missing-return",
     "mutationKey": "total-return",
-    "split": "train",
+    "split": "gate",
     "demo": false,
     "rootCause": {
       "file": "src/ledgerly/money.py",
@@ -276,7 +351,7 @@
     ],
     "mutation": "off-by-one",
     "mutationKey": "overdue-boundary",
-    "split": "train",
+    "split": "gate",
     "demo": false,
     "rootCause": {
       "file": "src/ledgerly/payments.py",
@@ -310,7 +385,502 @@
     ],
     "note": ""
   },
+  "ratekeeper-01": {
+    "domain": "ratekeeper",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "missing-return",
+    "mutationKey": "plan-return",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/quota.py",
+      "function": "get_plan",
+      "line": 36,
+      "span": [
+        33,
+        36
+      ]
+    },
+    "failingTests": [
+      "tests/test_headers.py::test_allowed_headers",
+      "tests/test_headers.py::test_retry_after_whole_seconds",
+      "tests/test_headers.py::test_retry_after_rounds_fractions_up",
+      "tests/test_limiter.py::test_burst_then_rate_limited",
+      "tests/test_limiter.py::test_allowed_again_after_retry_after",
+      "tests/test_limiter.py::test_keys_are_isolated",
+      "tests/test_limiter.py::test_weighted_requests",
+      "tests/test_limiter.py::test_daily_quota_blocks_until_midnight",
+      "tests/test_limiter.py::test_remaining_today_and_unknown_plan",
+      "tests/test_quota.py::test_plans"
+    ],
+    "passingTests": 14,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/ratekeeper/limiter.py:28, tests/test_quota.py:8; defect in get_plan"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/quota.py",
+        "search": "    PLANS[name]\n",
+        "replace": "    return PLANS[name]\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ratekeeper-02": {
+    "domain": "ratekeeper",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "wrong-default",
+    "mutationKey": "cost-default",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/limiter.py",
+      "function": "RateLimiter.check",
+      "line": 32,
+      "span": [
+        32,
+        41
+      ]
+    },
+    "failingTests": [
+      "tests/test_headers.py::test_allowed_headers",
+      "tests/test_headers.py::test_retry_after_whole_seconds",
+      "tests/test_headers.py::test_retry_after_rounds_fractions_up",
+      "tests/test_limiter.py::test_burst_then_rate_limited",
+      "tests/test_limiter.py::test_daily_quota_blocks_until_midnight",
+      "tests/test_limiter.py::test_remaining_today_and_unknown_plan"
+    ],
+    "passingTests": 18,
+    "evidence": {
+      "one-root-many": "6 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/limiter.py",
+        "search": "    def check(self, key: str, plan_name: str, cost: int = 0) -> Decision:\n",
+        "replace": "    def check(self, key: str, plan_name: str, cost: int = 1) -> Decision:\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ratekeeper-03": {
+    "domain": "ratekeeper",
+    "bugShape": "deep-call-chain",
+    "shapes": [
+      "deep-call-chain"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "wait-swap",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/bucket.py",
+      "function": "TokenBucket.wait_time",
+      "line": 43,
+      "span": [
+        37,
+        43
+      ]
+    },
+    "failingTests": [
+      "tests/test_headers.py::test_retry_after_whole_seconds",
+      "tests/test_headers.py::test_retry_after_rounds_fractions_up",
+      "tests/test_limiter.py::test_burst_then_rate_limited",
+      "tests/test_limiter.py::test_allowed_again_after_retry_after",
+      "tests/test_limiter.py::test_weighted_requests"
+    ],
+    "passingTests": 19,
+    "evidence": {
+      "deep-call-chain": "failures only in tests/test_headers.py, tests/test_limiter.py; bug in src/ratekeeper/bucket.py"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/bucket.py",
+        "search": "        return self.rate / deficit\n",
+        "replace": "        return deficit / self.rate\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ratekeeper-04": {
+    "domain": "ratekeeper",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "sliding-evict",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/window.py",
+      "function": "SlidingWindowLog._evict",
+      "line": 18,
+      "span": [
+        17,
+        19
+      ]
+    },
+    "failingTests": [
+      "tests/test_window.py::test_sliding_window_frees_exactly_after_window",
+      "tests/test_window.py::test_sliding_window_evicts_oldest_only"
+    ],
+    "passingTests": 22,
+    "evidence": {
+      "regression-trap": "tempting fix clears 1 failure(s) but breaks ['tests/test_window.py::test_sliding_window_limit']"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/window.py",
+        "search": "        while self.log and self.log[0] < now - self.window:\n",
+        "replace": "        while self.log and self.log[0] <= now - self.window:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/ratekeeper/window.py",
+        "search": "        if len(self.log) < self.limit:\n",
+        "replace": "        if len(self.log) <= self.limit:\n"
+      }
+    ],
+    "note": ""
+  },
+  "ratekeeper-05": {
+    "domain": "ratekeeper",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "quota-remaining",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/quota.py",
+      "function": "DailyQuota.remaining",
+      "line": 52,
+      "span": [
+        51,
+        52
+      ]
+    },
+    "failingTests": [
+      "tests/test_headers.py::test_allowed_headers",
+      "tests/test_limiter.py::test_daily_quota_blocks_until_midnight",
+      "tests/test_limiter.py::test_remaining_today_and_unknown_plan",
+      "tests/test_quota.py::test_consume_and_remaining",
+      "tests/test_quota.py::test_quota_resets_at_utc_midnight"
+    ],
+    "passingTests": 19,
+    "evidence": {
+      "one-root-many": "5 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/quota.py",
+        "search": "        return max(0, self.limit - self.used_today() - 1)\n",
+        "replace": "        return max(0, self.limit - self.used_today())\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "slotbook-01": {
+    "domain": "slotbook",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "overlap-adjacent",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/timerange.py",
+      "function": "TimeRange.overlaps",
+      "line": 36,
+      "span": [
+        35,
+        36
+      ]
+    },
+    "failingTests": [
+      "tests/test_bookings.py::test_back_to_back_bookings_allowed",
+      "tests/test_recurrence.py::test_book_series",
+      "tests/test_timerange.py::test_overlap_rules"
+    ],
+    "passingTests": 29,
+    "evidence": {
+      "one-root-many": "3 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/timerange.py",
+        "search": "        return self.start <= other.end and other.start <= self.end\n",
+        "replace": "        return self.start < other.end and other.start < self.end\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "slotbook-02": {
+    "domain": "slotbook",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "series-range",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/recurrence.py",
+      "function": "occurrences",
+      "line": 14,
+      "span": [
+        11,
+        14
+      ]
+    },
+    "failingTests": [
+      "tests/test_recurrence.py::test_weekly_occurrences",
+      "tests/test_recurrence.py::test_book_series",
+      "tests/test_recurrence.py::test_series_validation_and_daily"
+    ],
+    "passingTests": 29,
+    "evidence": {
+      "one-root-many": "3 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/recurrence.py",
+        "search": "    return [first.shift(every * i) for i in range(1, count)]\n",
+        "replace": "    return [first.shift(every * i) for i in range(count)]\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "slotbook-03": {
+    "domain": "slotbook",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "missing-return",
+    "mutationKey": "directory-return",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/resources.py",
+      "function": "Directory.get",
+      "line": 45,
+      "span": [
+        42,
+        45
+      ]
+    },
+    "failingTests": [
+      "tests/test_availability.py::test_empty_day_is_all_free",
+      "tests/test_availability.py::test_free_slots_around_bookings",
+      "tests/test_availability.py::test_find_slot_is_earliest_across_zones",
+      "tests/test_availability.py::test_find_slot_skips_busy_rooms",
+      "tests/test_bookings.py::test_book_room",
+      "tests/test_bookings.py::test_overlapping_booking_conflicts",
+      "tests/test_bookings.py::test_back_to_back_bookings_allowed",
+      "tests/test_bookings.py::test_outside_opening_hours",
+      "tests/test_bookings.py::test_last_hour_of_the_day",
+      "tests/test_bookings.py::test_capacity",
+      "tests/test_bookings.py::test_room_in_another_zone_uses_local_hours",
+      "tests/test_bookings.py::test_cancel_frees_the_slot",
+      "tests/test_recurrence.py::test_book_series",
+      "tests/test_recurrence.py::test_series_is_all_or_nothing"
+    ],
+    "passingTests": 18,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/slotbook/bookings.py:53, src/slotbook/resources.py:27; defect in Directory.get"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/resources.py",
+        "search": "        self._rooms[name]\n",
+        "replace": "        return self._rooms[name]\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "slotbook-04": {
+    "domain": "slotbook",
+    "bugShape": "deep-call-chain",
+    "shapes": [
+      "deep-call-chain"
+    ],
+    "mutation": "wrong-default",
+    "mutationKey": "closes-default",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/resources.py",
+      "function": "Room",
+      "line": 22,
+      "span": [
+        17,
+        22
+      ]
+    },
+    "failingTests": [
+      "tests/test_availability.py::test_empty_day_is_all_free",
+      "tests/test_availability.py::test_free_slots_around_bookings",
+      "tests/test_availability.py::test_find_slot_skips_busy_rooms",
+      "tests/test_bookings.py::test_last_hour_of_the_day"
+    ],
+    "passingTests": 28,
+    "evidence": {
+      "deep-call-chain": "failures only in tests/test_availability.py, tests/test_bookings.py; bug in src/slotbook/resources.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/resources.py",
+        "search": "    closes: time = time(17)\n",
+        "replace": "    closes: time = time(18)\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "slotbook-05": {
+    "domain": "slotbook",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface",
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "gaps-boundary",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/timerange.py",
+      "function": "gaps",
+      "line": 64,
+      "span": [
+        57,
+        69
+      ]
+    },
+    "failingTests": [
+      "tests/test_availability.py::test_find_slot_skips_busy_rooms",
+      "tests/test_timerange.py::test_gaps_inside_window"
+    ],
+    "passingTests": 30,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/slotbook/timerange.py:23; defect in gaps",
+      "regression-trap": "tempting fix clears 1 failure(s) but breaks ['tests/test_timerange.py::test_empty_or_reversed_rejected']"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/timerange.py",
+        "search": "        if r.start >= cursor:\n",
+        "replace": "        if r.start > cursor:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/slotbook/timerange.py",
+        "search": "        if not self.start < self.end:\n            raise InvalidRange(f\"empty or reversed range {self.start} - {self.end}\")\n",
+        "replace": ""
+      }
+    ],
+    "note": ""
+  },
+  "slotbook-06": {
+    "domain": "slotbook",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "inverted-sign",
+    "mutationKey": "zone-sign",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/zones.py",
+      "function": "zone",
+      "line": 18,
+      "span": [
+        16,
+        20
+      ]
+    },
+    "failingTests": [
+      "tests/test_availability.py::test_find_slot_is_earliest_across_zones",
+      "tests/test_resources.py::test_opening_hours_are_room_local",
+      "tests/test_timerange.py::test_overlap_rules",
+      "tests/test_zones.py::test_ist_is_five_thirty_ahead",
+      "tests/test_zones.py::test_western_zones",
+      "tests/test_zones.py::test_local_day_bounds"
+    ],
+    "passingTests": 26,
+    "evidence": {
+      "one-root-many": "6 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/zones.py",
+        "search": "        return timezone(timedelta(minutes=-OFFSETS_MINUTES[name]), name)\n",
+        "replace": "        return timezone(timedelta(minutes=OFFSETS_MINUTES[name]), name)\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
   "stockroom-01": {
+    "domain": "stockroom",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "transfer-swap",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/inventory.py",
+      "function": "Inventory.transfer",
+      "line": 49,
+      "span": [
+        48,
+        50
+      ]
+    },
+    "failingTests": [
+      "tests/test_inventory.py::test_transfer_between_locations"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/stockroom/inventory.py:44; defect in Inventory.transfer"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/inventory.py",
+        "search": "        self.ship(sku, qty, dest)\n        self.receive(sku, qty, source)\n",
+        "replace": "        self.ship(sku, qty, source)\n        self.receive(sku, qty, dest)\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "stockroom-02": {
     "domain": "stockroom",
     "bugShape": "one-root-many",
     "shapes": [
@@ -318,7 +888,7 @@
     ],
     "mutation": "off-by-one",
     "mutationKey": "pack-rounding",
-    "split": "train",
+    "split": "gate",
     "demo": false,
     "rootCause": {
       "file": "src/stockroom/reorder.py",
@@ -344,49 +914,6 @@
         "file": "src/stockroom/reorder.py",
         "search": "    return (qty + pack) // pack * pack\n",
         "replace": "    return (qty + pack - 1) // pack * pack\n"
-      }
-    ],
-    "trap": [],
-    "note": ""
-  },
-  "stockroom-02": {
-    "domain": "stockroom",
-    "bugShape": "misleading-surface",
-    "shapes": [
-      "misleading-surface"
-    ],
-    "mutation": "missing-return",
-    "mutationKey": "catalog-return",
-    "split": "train",
-    "demo": false,
-    "rootCause": {
-      "file": "src/stockroom/catalog.py",
-      "function": "Catalog.get",
-      "line": 37,
-      "span": [
-        35,
-        39
-      ]
-    },
-    "failingTests": [
-      "tests/test_reorder.py::test_reorder_triggers_at_exact_point",
-      "tests/test_reorder.py::test_order_at_exact_point",
-      "tests/test_reorder.py::test_order_rounds_up_to_whole_packs",
-      "tests/test_reorder.py::test_no_order_above_reorder_point",
-      "tests/test_reorder.py::test_arrival_and_position",
-      "tests/test_report.py::test_reorder_report_sorted_by_arrival",
-      "tests/test_report.py::test_incoming_stock_suppresses_orders",
-      "tests/test_report.py::test_reservations_count_against_position"
-    ],
-    "passingTests": 24,
-    "evidence": {
-      "misleading-surface": "crashes surface at src/stockroom/reorder.py:13, src/stockroom/reorder.py:17, src/stockroom/reorder.py:34; defect in Catalog.get"
-    },
-    "fix": [
-      {
-        "file": "src/stockroom/catalog.py",
-        "search": "            self._products[sku]\n",
-        "replace": "            return self._products[sku]\n"
       }
     ],
     "trap": [],
@@ -432,50 +959,6 @@
   },
   "stockroom-04": {
     "domain": "stockroom",
-    "bugShape": "regression-trap",
-    "shapes": [
-      "regression-trap"
-    ],
-    "mutation": "wrong-comparison",
-    "mutationKey": "reorder-boundary",
-    "split": "train",
-    "demo": false,
-    "rootCause": {
-      "file": "src/stockroom/reorder.py",
-      "function": "needs_reorder",
-      "line": 17,
-      "span": [
-        16,
-        17
-      ]
-    },
-    "failingTests": [
-      "tests/test_reorder.py::test_reorder_triggers_at_exact_point",
-      "tests/test_reorder.py::test_order_at_exact_point",
-      "tests/test_report.py::test_reorder_report_sorted_by_arrival"
-    ],
-    "passingTests": 29,
-    "evidence": {
-      "regression-trap": "tempting fix clears 2 failure(s) but breaks ['tests/test_reorder.py::test_no_order_above_reorder_point', 'tests/test_report.py::test_incoming_stock_suppresses_orders']"
-    },
-    "fix": [
-      {
-        "file": "src/stockroom/reorder.py",
-        "search": "    return pos < product.reorder_point\n",
-        "replace": "    return pos <= product.reorder_point\n"
-      }
-    ],
-    "trap": [
-      {
-        "file": "src/stockroom/reorder.py",
-        "search": "    if not needs_reorder(product, pos):\n        return 0\n",
-        "replace": ""
-      }
-    ],
-    "note": ""
-  },
-  "stockroom-05": {
-    "domain": "stockroom",
     "bugShape": "deep-call-chain",
     "shapes": [
       "deep-call-chain"
@@ -519,37 +1002,88 @@
     "trap": [],
     "note": ""
   },
+  "stockroom-05": {
+    "domain": "stockroom",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "reorder-boundary",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/reorder.py",
+      "function": "needs_reorder",
+      "line": 17,
+      "span": [
+        16,
+        17
+      ]
+    },
+    "failingTests": [
+      "tests/test_reorder.py::test_reorder_triggers_at_exact_point",
+      "tests/test_reorder.py::test_order_at_exact_point",
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival"
+    ],
+    "passingTests": 29,
+    "evidence": {
+      "regression-trap": "tempting fix clears 2 failure(s) but breaks ['tests/test_reorder.py::test_no_order_above_reorder_point', 'tests/test_report.py::test_incoming_stock_suppresses_orders']"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/reorder.py",
+        "search": "    return pos < product.reorder_point\n",
+        "replace": "    return pos <= product.reorder_point\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/stockroom/reorder.py",
+        "search": "    if not needs_reorder(product, pos):\n        return 0\n",
+        "replace": ""
+      }
+    ],
+    "note": ""
+  },
   "stockroom-06": {
     "domain": "stockroom",
     "bugShape": "misleading-surface",
     "shapes": [
       "misleading-surface"
     ],
-    "mutation": "swapped-args",
-    "mutationKey": "transfer-swap",
+    "mutation": "missing-return",
+    "mutationKey": "catalog-return",
     "split": "train",
     "demo": false,
     "rootCause": {
-      "file": "src/stockroom/inventory.py",
-      "function": "Inventory.transfer",
-      "line": 49,
+      "file": "src/stockroom/catalog.py",
+      "function": "Catalog.get",
+      "line": 37,
       "span": [
-        48,
-        50
+        35,
+        39
       ]
     },
     "failingTests": [
-      "tests/test_inventory.py::test_transfer_between_locations"
+      "tests/test_reorder.py::test_reorder_triggers_at_exact_point",
+      "tests/test_reorder.py::test_order_at_exact_point",
+      "tests/test_reorder.py::test_order_rounds_up_to_whole_packs",
+      "tests/test_reorder.py::test_no_order_above_reorder_point",
+      "tests/test_reorder.py::test_arrival_and_position",
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival",
+      "tests/test_report.py::test_incoming_stock_suppresses_orders",
+      "tests/test_report.py::test_reservations_count_against_position"
     ],
-    "passingTests": 31,
+    "passingTests": 24,
     "evidence": {
-      "misleading-surface": "crashes surface at src/stockroom/inventory.py:44; defect in Inventory.transfer"
+      "misleading-surface": "crashes surface at src/stockroom/reorder.py:13, src/stockroom/reorder.py:17, src/stockroom/reorder.py:34; defect in Catalog.get"
     },
     "fix": [
       {
-        "file": "src/stockroom/inventory.py",
-        "search": "        self.ship(sku, qty, dest)\n        self.receive(sku, qty, source)\n",
-        "replace": "        self.ship(sku, qty, source)\n        self.receive(sku, qty, dest)\n"
+        "file": "src/stockroom/catalog.py",
+        "search": "            self._products[sku]\n",
+        "replace": "            return self._products[sku]\n"
       }
     ],
     "trap": [],

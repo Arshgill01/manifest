@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Iterable, Sequence
 
 CENT = Decimal("0.01")
@@ -23,7 +23,7 @@ def to_decimal(value) -> Decimal:
 
 def quantize(value) -> Decimal:
     """Round to whole cents, half away from zero (accounting rounding)."""
-    return to_decimal(value).quantize(CENT, rounding=ROUND_HALF_EVEN)
+    return to_decimal(value).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
 @dataclass(frozen=True)

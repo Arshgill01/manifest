@@ -34,7 +34,7 @@ class Catalog:
 
     def get(self, sku: str) -> Product:
         try:
-            self._products[sku]
+            return self._products[sku]
         except KeyError:
             raise UnknownSku(sku) from None
 

@@ -54,7 +54,7 @@ def coupon_discount(subtotal: Money, code: str) -> Money:
         raise InvalidCoupon(code) from None
     if kind == "percent":
         return percent_off(subtotal, value)
-    return min(Money(value, subtotal.currency), subtotal)
+    return max(Money(value, subtotal.currency), subtotal)
 
 
 def spread(discount: Money, line_nets: list[Money]) -> list[Money]:
