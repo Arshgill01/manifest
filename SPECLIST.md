@@ -37,14 +37,14 @@ Build order (SPEC §10) and merge order: **A+B → C → D**, E anytime. Checkpo
 - [x] `tests/test_harness_*.py` (fake student)
 
 ## C — grow (`growth/grow.py`, `growth/gate.py`, `harness/teacher.py`)
-- [ ] Teacher client (DeepSeek, OpenAI-compatible), JSON schema validation + 1 retry, cost tracking, `model.call` role=teacher
-- [ ] Trace compressor: function-level failed traces from train events only (≤6, bounded)
-- [ ] Teacher prompt per SPEC §5.2; proposal → `growth.proposal`
-- [ ] Gate: accept iff gate passes ↑ (or = with model calls ↓ ≥20%) and no regression → `gate.result`
-- [ ] Accept: copy to `routines/grown/<name>/`, export `skills/<name>/` (SKILL.md + `scripts/routine.py`), insert into registry before `ask-student`
-- [ ] Held-out eval each round → `eval.heldout`; 4 rounds; stop after 2 consecutive rejections; `run.end` summary
-- [ ] Leak test: no held-out id/content in any teacher prompt
-- [ ] One full round on 3 train + 2 gate tasks (dry-run mode with a fake teacher too)
+- [x] Teacher client (DeepSeek, OpenAI-compatible), JSON schema validation + 1 retry, cost tracking, `model.call` role=teacher
+- [x] Trace compressor: function-level failed traces from train events only (≤6, bounded)
+- [x] Teacher prompt per SPEC §5.2; proposal → `growth.proposal`
+- [x] Gate: accept iff gate passes ↑ (or = with model calls ↓ ≥20%) and no regression → `gate.result`
+- [x] Accept: copy to `routines/grown/<name>/`, export `skills/<name>/` (SKILL.md + `scripts/routine.py`), insert into registry before `ask-student`
+- [x] Held-out eval each round → `eval.heldout`; 4 rounds; stop after 2 consecutive rejections; `run.end` summary
+- [x] Leak test: no held-out id/content in any teacher prompt
+- [ ] One full round on 3 train + 2 gate tasks (dry-run mode with a fake teacher too) — dry run done (`--fake-teacher --stub-runner`); real round pending A+B merge + `.env`
 
 ## D — warden (`warden/`, `skills/warden/`, `demo/`, `.github/workflows/skills.yml`)
 - [ ] FIRST 20 MIN: `sandbox-exec` profile proven to block `~/.ssh` read + outbound network, while allowing python, pytest, workdir writes under `src/**`, and localhost:11434
