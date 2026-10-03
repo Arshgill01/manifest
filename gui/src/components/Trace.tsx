@@ -36,9 +36,11 @@ export function Trace({ events, index, n, focus, pinned, onUnpin, version }: Pro
     const el = body.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [evs.length, focus?.taskId, focus?.round]);
-  useEffect(() => {
-    stick.current = true;
-  }, [focus?.taskId, focus?.round]);
+  // a picked attempt reads from the top; a followed one sticks to the newest row
+  useLayoutEffect(() => {
+    stick.current = !pinned;
+    if (pinned && body.current) body.current.scrollTop = 0;
+  }, [focus?.taskId, focus?.round, pinned]);
 
   const toggle = (k: number) =>
     setOpen((s) => {
@@ -52,10 +54,10 @@ export function Trace({ events, index, n, focus, pinned, onUnpin, version }: Pro
   const codeShare = total ? trace.codeDecisions / total : 0;
 
   return (
-    <section className="panel trace" aria-labelledby="trace-h">
+    <section className="trace" aria-labelledby="trace-h">
       <header className="panel-h trace-h">
         <div className="trace-title">
-          <h2 id="trace-h">Trace</h2>
+          <h2 id="trace-h" className="sr-only">Trace</h2>
           {focus && info ? (
             <p className="trace-task">
               <span className="mono strong">{focus.taskId}</span>
@@ -109,8 +111,8 @@ export function Trace({ events, index, n, focus, pinned, onUnpin, version }: Pro
         }}
       >
         {!focus && <EmptyTrace />}
-        {trace.items.map((it) => (
-          <Item key={itemKey(it)} it={it} open={open} toggle={toggle} />
+        {trace.items.map((it, k) => (
+          <Item key={itemKey(it)} it={it} open={open} toggle={toggle} continued={it.kind === "fallback" && trace.items[k - 1]?.kind === "fallback"} />
         ))}
         {focus && trace.items.length > 0 && !trace.items.some((x) => x.kind === "end") && (
           <div className="t-wait" aria-live="polite">
@@ -125,7 +127,7 @@ export function Trace({ events, index, n, focus, pinned, onUnpin, version }: Pro
 const itemKey = (it: TraceItem) =>
   it.kind === "start" || it.kind === "end" ? `${it.kind}-${it.ev.i}` : `${it.kind}-${it.key}`;
 
-function Item({ it, open, toggle }: { it: TraceItem; open: Set<number>; toggle: (k: number) => void }) {
+function Item({ it, open, toggle, continued }: { it: TraceItem; open: Set<number>; toggle: (k: number) => void; continued: boolean }) {
   switch (it.kind) {
     case "start":
       return (
@@ -153,6 +155,22 @@ function Item({ it, open, toggle }: { it: TraceItem; open: Set<number>; toggle: 
     }
     case "routine":
       return <RoutineBlock it={it} open={open} toggle={toggle} />;
+    case "fallback":
+      return (
+        <div className={`t-fallback ${continued ? "is-continued" : ""}`}>
+          <button className="t-fallback-h" onClick={() => it.ev && toggle(it.ev.i)} aria-expanded={it.ev ? open.has(it.ev.i) : undefined} disabled={!it.ev}>
+            <span className="t-fallback-name mono">ask-student</span>
+            <span>no routine applied · the student picks the move</span>
+            <span className="t-ms mono">{it.ev ? fmtMs(it.ev.ms) : "…"}</span>
+          </button>
+          {it.ev && open.has(it.ev.i) && <Details ev={it.ev} />}
+          <div className="t-children">
+            {it.children.map((c) => (
+              <Child key={c.i} ev={c} open={open} toggle={toggle} />
+            ))}
+          </div>
+        </div>
+      );
     case "step":
       return (
         <div className="t-step">

@@ -23,8 +23,10 @@ export interface RunIndex {
   tasks: Map<string, TaskInfo>;
   bySplit: Record<Split, string[]>;
   maxRound: number;
-  /** event index where each round begins */
+  /** event index where each round begins (a round absent from the file shares the next one's start) */
   roundStart: number[];
+  /** rounds that actually have events in this file (a resumed run can start at R3) */
+  seen: Set<number>;
   /** `${round}|${taskId}` → event indices for that attempt */
   attempts: Map<string, number[]>;
   /** compressed replay time for each event (ms at 1×) */
@@ -40,6 +42,7 @@ export function buildIndex(events: ManifestEvent[], prev?: RunIndex): RunIndex {
     bySplit: { train: [], gate: [], heldout: [] },
     maxRound: 0,
     roundStart: [],
+    seen: new Set(),
     attempts: new Map(),
     ct: [],
   };
@@ -48,6 +51,7 @@ export function buildIndex(events: ManifestEvent[], prev?: RunIndex): RunIndex {
     const gap = i === 0 ? 0 : e.t - events[i - 1].t;
     idx.ct.push(i === 0 ? 0 : idx.ct[i - 1] + Math.max(GAP_MIN_MS, Math.min(gap, GAP_CAP_MS)));
     if (e.round > idx.maxRound) idx.maxRound = e.round;
+    idx.seen.add(e.round);
     while (idx.roundStart.length <= e.round) idx.roundStart.push(i);
     if (e.taskId) {
       if (!idx.tasks.has(e.taskId) && e.split) {
@@ -117,6 +121,7 @@ function newRound(round: number): RoundState {
 
 /** State after applying events[0..n). Cheap enough (<1 ms for a few thousand events) to recompute per frame. */
 export function derive(events: ManifestEvent[], n: number): Derived {
+  n = Math.min(n, events.length);
   const d: Derived = {
     n, last: n > 0 ? events[n - 1] : null, run: null, end: null, round: 0, cells: new Map(), active: null,
     rounds: [], teacherCost: 0, blocks: [], accepted: [], rejected: [],

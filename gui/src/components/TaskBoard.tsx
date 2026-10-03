@@ -19,9 +19,9 @@ export function TaskBoard({ index, d, focus, onPick }: Props) {
   const seenDomains = new Set([...index.bySplit.train, ...index.bySplit.gate].map((id) => index.tasks.get(id)?.domain));
 
   return (
-    <section className="panel board" aria-labelledby="board-h">
-      <header className="panel-h board-h">
-        <h2 id="board-h">Task board</h2>
+    <section className="board" aria-labelledby="board-h">
+      <header className="board-h">
+        <h2 id="board-h" className="sb-h">Task board</h2>
         <div className="board-cols" aria-hidden="true" style={{ ["--cols" as string]: rounds.length }}>
           {rounds.map((r) => (
             <span key={r} className={r === d.round ? "now" : ""}>
@@ -33,7 +33,8 @@ export function TaskBoard({ index, d, focus, onPick }: Props) {
 
       <div className="board-body">
         {index.tasks.size === 0 && <p className="empty-note">Tasks appear here as the run starts them.</p>}
-        {(["train", "gate", "heldout"] as const).map((split) => {
+        {/* held-out first: it's the number that matters, and it must be on screen at 720p */}
+        {(["heldout", "train", "gate"] as const).map((split) => {
           const ids = index.bySplit[split];
           if (!ids.length) return null;
           const score = scoreAt(ids, d, d.round);
@@ -65,7 +66,7 @@ export function TaskBoard({ index, d, focus, onPick }: Props) {
                       <span className="task-name" title={`${id} · ${t.bugShape}`}>
                         <span className="task-domain">{t.domain}</span>
                         <span className="task-num">{t.num}</span>
-                        {split === "heldout" && !seenDomains.has(t.domain) && <span className="tag-new">new domain</span>}
+                        {split === "heldout" && !seenDomains.has(t.domain) && <span className="tag-new" title="domain absent from train and gate">new</span>}
                       </span>
                       <span className="pips" style={{ ["--cols" as string]: rounds.length }}>
                         {rounds.map((r) => (

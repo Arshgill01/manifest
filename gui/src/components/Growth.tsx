@@ -20,7 +20,7 @@ export function Growth({ d, index, onJumpRound }: Props) {
   }, [d.round, d.rounds[d.round]?.gate, d.rounds[d.round]?.manifest]);
 
   return (
-    <section className="panel growth" aria-labelledby="growth-h">
+    <section className="growth" aria-labelledby="growth-h">
       <header className="panel-h">
         <h2 id="growth-h">Growth</h2>
         <p className="panel-sub">
@@ -30,12 +30,15 @@ export function Growth({ d, index, onJumpRound }: Props) {
       <ol className="growth-body" ref={body}>
         {rounds.map((r) => {
           const rs = d.rounds[r];
-          const reached = r <= d.round && !!rs;
+          const inFile = index.seen.has(r);
+          const reached = inFile && r <= d.round && !!rs;
           return (
             <li key={r} data-round={r} className={`gr ${reached ? "" : "gr-ghost"} ${r === d.round ? "gr-now" : ""}`}>
               <button className="gr-h" onClick={() => onJumpRound(r)} title={`Replay from round ${r}`}>
                 <span className="gr-r">R{r}</span>
-                <span className="gr-title">{r === 0 ? "Baseline" : rs?.proposal?.routine ?? (reached ? phaseText(rs!, index, d) : "not reached yet")}</span>
+                <span className="gr-title">
+                  {!inFile ? "not in this run" : r === 0 ? "Baseline" : rs?.proposal?.routine ?? (reached ? phaseText(rs!, index, d) : "not reached yet")}
+                </span>
               </button>
               {reached && (r === 0 ? <Baseline rs={rs!} /> : <RoundCard rs={rs!} index={index} d={d} />)}
             </li>
@@ -164,8 +167,10 @@ export function WardenCard({ m }: { m: WardenManifest }) {
   const findings = (m.findings ?? []).map((f): Finding => (typeof f === "string" ? { detail: f } : f));
   findings.sort((a, b) => (sevRank[a.severity ?? "info"] ?? 3) - (sevRank[b.severity ?? "info"] ?? 3));
   const counts = findings.reduce<Record<string, number>>((acc, f) => ((acc[f.severity ?? "info"] = (acc[f.severity ?? "info"] ?? 0) + 1), acc), {});
-  const risky = (glob: string, kind: "read" | "write") =>
-    /^(~|\/|\.\.)/.test(glob) || glob.includes("..") || (kind === "write" && !glob.startsWith("src/"));
+  // beyond the default grown manifest (read **, write src/**, run pytest). Red only when Warden says dangerous.
+  const outside = (glob: string, kind: "read" | "write") =>
+    /^(~|\/)/.test(glob) || glob.includes("..") || (kind === "write" && !glob.startsWith("src/"));
+  const tone = verdict === "dangerous" ? "chip-risk" : "chip-extra";
 
   return (
     <div className={`warden v-${verdict}`} role="group" aria-label={`Warden permission manifest for ${m.skill}: ${verdict}`}>
@@ -179,21 +184,21 @@ export function WardenCard({ m }: { m: WardenManifest }) {
       <dl className="perm">
         <div>
           <dt>read</dt>
-          <dd>{chips(m.read, (g) => risky(g, "read"))}</dd>
+          <dd>{chips(m.read, (g) => outside(g, "read"), tone)}</dd>
         </div>
         <div>
           <dt>write</dt>
-          <dd>{chips(m.write, (g) => risky(g, "write"))}</dd>
+          <dd>{chips(m.write, (g) => outside(g, "write"), tone)}</dd>
         </div>
         <div>
           <dt>run</dt>
-          <dd>{chips(m.commands, (c) => !SAFE_CMD.test(c))}</dd>
+          <dd>{chips(m.commands, (c) => !SAFE_CMD.test(c), tone)}</dd>
         </div>
         <div>
           <dt>network</dt>
           <dd>
             {m.network ? (
-              <span className="chip chip-risk">requested</span>
+              <span className={`chip ${tone}`}>requested</span>
             ) : (
               <span className="chip chip-none">none</span>
             )}
@@ -223,10 +228,10 @@ export function WardenCard({ m }: { m: WardenManifest }) {
   );
 }
 
-function chips(xs: string[] | undefined, isRisky: (x: string) => boolean) {
+function chips(xs: string[] | undefined, beyond: (x: string) => boolean, tone: string) {
   if (!xs?.length) return <span className="chip chip-none">none</span>;
   return xs.map((x) => (
-    <span key={x} className={`chip ${isRisky(x) ? "chip-risk" : ""}`}>
+    <span key={x} className={`chip ${beyond(x) ? tone : ""}`} title={beyond(x) ? "beyond the default grown-routine manifest" : undefined}>
       {x}
     </span>
   ));

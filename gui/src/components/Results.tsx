@@ -24,18 +24,26 @@ function useWidth<T extends HTMLElement>() {
 export function Results({ d, index }: Props) {
   const rounds = Array.from({ length: index.maxRound + 1 }, (_, r) => r);
   const held = rounds.map((r) => d.rounds[r]?.heldout ?? null);
-  const teacherCalls = d.rounds.flatMap((rs) => rs.teacher.map((m) => ({ ...m, r: rs.round })));
+  const bill = d.rounds
+    .filter((rs) => rs.teacher.length)
+    .map((rs) => ({
+      r: rs.round,
+      calls: rs.teacher.length,
+      tok: rs.teacher.reduce((s, m) => s + m.promptTokens + m.outTokens, 0),
+      usd: rs.teacher.reduce((s, m) => s + (m.costUsd ?? 0), 0),
+      routine: rs.proposal?.routine,
+    }));
   const first = held.find(Boolean);
   const last = [...held].reverse().find(Boolean);
 
   return (
-    <section className="panel results" aria-labelledby="results-h">
+    <section className="results" aria-labelledby="results-h">
       <h2 id="results-h" className="sr-only">
         Results
       </h2>
       <Figure
         title="Held-out pass rate"
-        sub="8 tasks the teacher never sees"
+        sub="tasks the teacher never sees"
         headline={last ? fmtPct(last.passed / last.total) : "–"}
         from={first && last && first !== last ? fmtPct(first.passed / first.total) : undefined}
       >
@@ -49,8 +57,8 @@ export function Results({ d, index }: Props) {
         />
       </Figure>
       <Figure
-        title="Student model calls per task"
-        sub="held-out average · lower = more done in code"
+        title="Model calls per task"
+        sub="student, held-out avg · lower = more in code"
         headline={last ? last.avgModelCalls.toFixed(1) : "–"}
         from={first && last && first !== last ? first.avgModelCalls.toFixed(1) : undefined}
       >
@@ -63,16 +71,15 @@ export function Results({ d, index }: Props) {
       <div className="fig bill" aria-label="Teacher bill">
         <div className="fig-h">
           <h3>Teacher bill</h3>
-          <p className="fig-sub">every frontier-model call, ever</p>
+          <p className="fig-sub">all frontier calls, ever</p>
         </div>
         <ol className="bill-rows">
-          {teacherCalls.length === 0 && <li className="faint">no teacher calls yet</li>}
-          {teacherCalls.map((m) => (
-            <li key={m.i}>
-              <span className="mono">R{m.r}</span>
-              <span className="bill-what">{m.purpose.replace("_", " ")}</span>
-              <span className="mono faint">{fmtInt(m.promptTokens + m.outTokens)} tok</span>
-              <span className="mono bill-usd">{fmtUsd(m.costUsd ?? 0)}</span>
+          {bill.length === 0 && <li className="faint">no teacher calls yet</li>}
+          {bill.map((b) => (
+            <li key={b.r} title={`${b.calls} calls · ${fmtInt(b.tok)} tokens`}>
+              <span className="mono">R{b.r}</span>
+              <span className="bill-what mono">{b.routine ?? `${b.calls} call${b.calls === 1 ? "" : "s"}`}</span>
+              <span className="mono bill-usd">{fmtUsd(b.usd)}</span>
             </li>
           ))}
         </ol>
@@ -100,7 +107,6 @@ function Figure({ title, sub, headline, from, children }: { title: string; sub: 
       <div className="fig-h">
         <figcaption>
           <h3>{title}</h3>
-          <p className="fig-sub">{sub}</p>
         </figcaption>
         <p className="fig-num">
           {from && (
@@ -113,12 +119,13 @@ function Figure({ title, sub, headline, from, children }: { title: string; sub: 
           {headline}
         </p>
       </div>
+      <p className="fig-sub">{sub}</p>
       {children}
     </figure>
   );
 }
 
-const H = 112;
+const H = 140;
 const PAD = { l: 34, r: 14, t: 10, b: 20 };
 
 function useHover(rounds: number[], w: number) {
@@ -173,7 +180,10 @@ function LineChart({ rounds, values, tip }: { rounds: number[]; values: (number 
 function ColumnChart({ rounds, values, tip }: { rounds: number[]; values: (number | null)[]; tip: (r: number) => string }) {
   const [ref, w] = useWidth<HTMLDivElement>();
   const { hover, setHover, x, onMove } = useHover(rounds, w);
-  const max = Math.max(12, ...values.map((v) => v ?? 0));
+  const peak = Math.max(1, ...values.map((v) => v ?? 0));
+  // nice ceiling with headroom for the value label on the tallest column
+  const step = peak > 10 ? 5 : peak > 4 ? 2 : 1;
+  const max = Math.ceil((peak * 1.18) / step) * step;
   const y = (v: number) => PAD.t + (1 - v / max) * (H - PAD.t - PAD.b);
   const bw = Math.min(24, Math.max(10, (w - PAD.l - PAD.r) / (rounds.length * 2.4)));
   const present = values.map((v, k) => (v == null ? -1 : k)).filter((k) => k >= 0);

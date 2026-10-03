@@ -6,6 +6,8 @@ export type TraceItem =
   | { kind: "routine"; ev: RoutineCall | null; children: ManifestEvent[]; key: number }
   /** baseline mode: the student picks the next move; the tool calls it chose hang off it */
   | { kind: "step"; model: ModelCall | null; children: ManifestEvent[]; key: number; n: number }
+  /** manifest mode, seed fallback: no routine applied, so ask-student hands the student the wheel */
+  | { kind: "fallback"; ev: RoutineCall | null; children: ManifestEvent[]; key: number }
   | { kind: "end"; ev: TaskEnd };
 
 export interface Trace {
@@ -44,8 +46,11 @@ export function buildTrace(evs: ManifestEvent[], round: number): Trace {
     if (mode === "manifest") {
       if (e.type === "routine.call") {
         // ask-student is the fallback where the student picks the move; it's not code deciding
-        if (e.routine !== "ask-student") codeDecisions++;
-        items.push({ kind: "routine", ev: e, children: pending, key: pending[0]?.i ?? e.i });
+        if (e.routine === "ask-student") items.push({ kind: "fallback", ev: e, children: pending, key: pending[0]?.i ?? e.i });
+        else {
+          codeDecisions++;
+          items.push({ kind: "routine", ev: e, children: pending, key: pending[0]?.i ?? e.i });
+        }
         pending = [];
       } else {
         pending.push(e);
@@ -67,7 +72,11 @@ export function buildTrace(evs: ManifestEvent[], round: number): Trace {
   }
   if (mode === "manifest" && pending.length) {
     const endIdx = items.findIndex((it) => it.kind === "end");
-    const it: TraceItem = { kind: "routine", ev: null, children: pending, key: pending[0].i };
+    // a student "step" inside an unfinished group means the fallback is running: the student is driving
+    const studentDriving = pending.some((e) => e.type === "model.call" && e.role === "student" && e.purpose === "step");
+    const it: TraceItem = studentDriving
+      ? { kind: "fallback", ev: null, children: pending, key: pending[0].i }
+      : { kind: "routine", ev: null, children: pending, key: pending[0].i };
     if (endIdx >= 0) items.splice(endIdx, 0, it);
     else items.push(it);
   }
