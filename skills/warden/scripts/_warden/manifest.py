@@ -1,3 +1,4 @@
+# VENDORED from manifest warden/ — do not edit here. Regenerate: python skills/warden/vendor.py
 """Warden permission manifests (SPEC §6.2).
 
 `build(skill_dir, requested, findings) -> {skill, read, write, commands, network, findings, verdict, ...}`

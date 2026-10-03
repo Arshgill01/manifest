@@ -1,3 +1,4 @@
+# VENDORED from manifest warden/ — do not edit here. Regenerate: python skills/warden/vendor.py
 """Warden static scan (SPEC §6.1): regex + AST rules over a routine or skill directory.
 
 `scan(path, teacher=None) -> [{rule, severity, file, line, detail}]`
