@@ -20,6 +20,8 @@ export interface RoutineCall extends Base { type: "routine.call"; routine: strin
 export interface ModelCall extends Base {
   type: "model.call"; model: string; role: "student" | "teacher"; purpose: string;
   promptTokens: number; outTokens: number; ms: number; cacheHitTokens?: number; costUsd?: number;
+  /** optional (newer runs): newest message the model saw, and its reply + tool calls */
+  prompt?: string; response?: string;
 }
 export interface ToolCall extends Base { type: "tool.call"; tool: string; args: Record<string, unknown> | null; ok: boolean; summary: string }
 export interface GrowthProposal extends Base { type: "growth.proposal"; routine: string; rationale: string; triggerDescription: string; skillPath: string; status?: string }

@@ -1,47 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { attemptEvents, type RunIndex } from "../lib/derive";
-import { buildTrace, type TraceItem } from "../lib/trace";
+import { useMemo, useState } from "react";
+import { buildTrace, type Trace, type TraceItem } from "../lib/trace";
 import type { ManifestEvent, ModelCall, ToolCall, WardenBlock } from "../lib/types";
 import { Check, Cross } from "./TaskBoard";
 import { fmtMs, fmtInt } from "../lib/format";
 
-interface Props {
-  events: ManifestEvent[];
-  index: RunIndex;
-  n: number;
-  focus: { taskId: string; round: number } | null;
-  pinned: boolean;
-  onUnpin: () => void;
-  version: number;
-}
-
-const SPLIT_NAME = { train: "train", gate: "gate", heldout: "held-out" } as const;
-
-export function Trace({ events, index, n, focus, pinned, onUnpin, version }: Props) {
-  const evs = useMemo(
-    () => (focus ? attemptEvents(events, index, focus.round, focus.taskId, n) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [focus?.taskId, focus?.round, n, version],
-  );
-  const trace = useMemo(() => buildTrace(evs, focus?.round ?? 0), [evs, focus?.round]);
-  const info = focus ? index.tasks.get(focus.taskId) : undefined;
+/** One task attempt, drawn inline in the session transcript: who drove, then every row. */
+export function AttemptTrace({ evs, round, running }: { evs: ManifestEvent[]; round: number; running: boolean }) {
+  const trace = useMemo(() => buildTrace(evs, round), [evs, round]);
   const [open, setOpen] = useState<Set<number>>(new Set());
-  const body = useRef<HTMLDivElement>(null);
-  const stick = useRef(true);
-
-  useEffect(() => setOpen(new Set()), [focus?.taskId, focus?.round]);
-
-  // keep the newest row in view while following, unless the reader scrolled up
-  useLayoutEffect(() => {
-    const el = body.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
-  }, [evs.length, focus?.taskId, focus?.round]);
-  // a picked attempt reads from the top; a followed one sticks to the newest row
-  useLayoutEffect(() => {
-    stick.current = !pinned;
-    if (pinned && body.current) body.current.scrollTop = 0;
-  }, [focus?.taskId, focus?.round, pinned]);
-
   const toggle = (k: number) =>
     setOpen((s) => {
       const x = new Set(s);
@@ -49,82 +15,46 @@ export function Trace({ events, index, n, focus, pinned, onUnpin, version }: Pro
       else x.add(k);
       return x;
     });
-
-  const total = trace.codeDecisions + trace.modelCalls;
-  const codeShare = total ? trace.codeDecisions / total : 0;
+  const items = trace.items.filter((it) => it.kind !== "start" && it.kind !== "end");
 
   return (
-    <section className="trace" aria-labelledby="trace-h">
-      <header className="panel-h trace-h">
-        <div className="trace-title">
-          <h2 id="trace-h" className="sr-only">Trace</h2>
-          {focus && info ? (
-            <p className="trace-task">
-              <span className="mono strong">{focus.taskId}</span>
-              <span className={`split-chip chip-${info.split}`}>{SPLIT_NAME[info.split]}</span>
-              <span className="mono">R{focus.round}</span>
-              <span className="trace-shape">{info.bugShape.replaceAll("-", " ").replaceAll("+", " + ")}</span>
-            </p>
-          ) : (
-            <p className="trace-task faint">No task yet</p>
-          )}
-          {pinned ? (
-            <button className="btn-quiet follow-btn" onClick={onUnpin} title="Follow the running task again (Esc)">
-              Pinned · follow run
-            </button>
-          ) : (
-            <span className="follow-state">
-              <span className="dot-follow" aria-hidden="true" />
-              following the run
-            </span>
-          )}
-        </div>
-
-        <div className="driver" aria-label={`Control decisions: ${trace.codeDecisions} by code routines, ${trace.modelCalls} by the student model`}>
-          <span className="driver-label">Who drove</span>
-          <div className="driver-bar" aria-hidden="true">
-            {total > 0 ? (
-              <>
-                <span className="driver-code" style={{ flexGrow: trace.codeDecisions }} />
-                <span className="driver-model" style={{ flexGrow: trace.modelCalls }} />
-              </>
-            ) : (
-              <span className="driver-empty" />
-            )}
-          </div>
-          <span className="driver-n">
-            <span className="fn-mark fn-mini" aria-hidden="true">
-              ƒ
-            </span>
-            <b>{trace.codeDecisions}</b> code routine{trace.codeDecisions === 1 ? "" : "s"}
-            <span className="model-mark model-mini" aria-hidden="true">
-              4B
-            </span>
-            <b>{trace.modelCalls}</b> student call{trace.modelCalls === 1 ? "" : "s"}
-            {total > 0 && <span className="driver-pct">{Math.round(codeShare * 100)}% code</span>}
-          </span>
-        </div>
-      </header>
-
-      <div
-        className="trace-body"
-        ref={body}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-        }}
-      >
-        {!focus && <EmptyTrace />}
-        {trace.items.map((it, k) => (
-          <Item key={itemKey(it)} it={it} open={open} toggle={toggle} continued={it.kind === "fallback" && trace.items[k - 1]?.kind === "fallback"} />
+    <div className="attempt">
+      <Driver trace={trace} />
+      <div className="attempt-items">
+        {items.map((it, k) => (
+          <Item key={itemKey(it)} it={it} open={open} toggle={toggle} continued={it.kind === "fallback" && items[k - 1]?.kind === "fallback"} />
         ))}
-        {focus && trace.items.length > 0 && !trace.items.some((x) => x.kind === "end") && (
+        {running && (
           <div className="t-wait" aria-live="polite">
-            <span className="wait-dot" /> running…
+            <span className="wait-dot" /> {items.length ? "running…" : "starting…"}
           </div>
         )}
       </div>
-    </section>
+    </div>
+  );
+}
+
+function Driver({ trace }: { trace: Trace }) {
+  const total = trace.codeDecisions + trace.modelCalls;
+  if (!total) return null;
+  return (
+    <div className="driver" aria-label={`Control decisions: ${trace.codeDecisions} by code routines, ${trace.modelCalls} by the student model`}>
+      <div className="driver-bar" aria-hidden="true">
+        <span className="driver-code" style={{ flexGrow: trace.codeDecisions }} />
+        <span className="driver-model" style={{ flexGrow: trace.modelCalls }} />
+      </div>
+      <span className="driver-n">
+        <span className="fn-mark fn-mini" aria-hidden="true">
+          ƒ
+        </span>
+        <b>{trace.codeDecisions}</b> code
+        <span className="model-mark model-mini" aria-hidden="true">
+          4B
+        </span>
+        <b>{trace.modelCalls}</b> student
+        <span className="driver-pct">{Math.round((trace.codeDecisions / total) * 100)}% code</span>
+      </span>
+    </div>
   );
 }
 
@@ -266,6 +196,7 @@ function ToolRow({ ev, open, toggle }: { ev: ToolCall; open: boolean; toggle: ()
 
 const PURPOSE: Record<string, string> = {
   step: "chose the next move",
+  chat: "chose the next move",
   diagnose: "asked to diagnose",
   patch: "asked for a patch",
 };
@@ -287,7 +218,23 @@ function ModelRow({ ev, open, toggle, step }: { ev: ModelCall; open: boolean; to
         </span>
         <span className="t-ms mono">{fmtMs(ev.ms)}</span>
       </button>
-      {open && <Details ev={ev} />}
+      {open && (ev.prompt || ev.response) && (
+        <div className="t-say">
+          {ev.prompt && (
+            <div className="t-say-in">
+              <span className="t-say-who">saw</span>
+              <pre>{ev.prompt}</pre>
+            </div>
+          )}
+          {ev.response && (
+            <div className="t-say-out">
+              <span className="t-say-who">said</span>
+              <pre>{ev.response}</pre>
+            </div>
+          )}
+        </div>
+      )}
+      {open && <Details ev={ev} hide={["prompt", "response"]} />}
     </div>
   );
 }
@@ -307,8 +254,8 @@ function BlockRow({ ev }: { ev: WardenBlock }) {
 }
 
 const HIDE = new Set(["ts", "type", "round", "taskId", "split", "i", "t"]);
-function Details({ ev }: { ev: ManifestEvent }) {
-  const rows = Object.entries(ev).filter(([k]) => !HIDE.has(k));
+function Details({ ev, hide = [] }: { ev: ManifestEvent; hide?: string[] }) {
+  const rows = Object.entries(ev).filter(([k]) => !HIDE.has(k) && !hide.includes(k));
   return (
     <dl className="details">
       <div>
@@ -329,7 +276,7 @@ function Details({ ev }: { ev: ManifestEvent }) {
   );
 }
 
-function EmptyTrace() {
+export function EmptyTrace() {
   return (
     <div className="empty-trace">
       <p className="empty-lede">Each row is one thing the harness did.</p>

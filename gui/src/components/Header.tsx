@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { RunStart } from "../lib/types";
-import type { Mode } from "../hooks/useRunSource";
-
-export type Tab = "trace" | "results";
+export type Tab = "session" | "board" | "growth" | "results";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "session", label: "Session" },
+  { id: "board", label: "Board" },
+  { id: "growth", label: "Growth" },
+  { id: "results", label: "Results" },
+];
 
 interface Props {
   title: string;
   isFixture: boolean;
-  mode: Mode;
+  live: boolean;
+  canStop: boolean;
+  onStop: () => void;
+  showTabs: boolean;
   run: RunStart | null;
   round: number;
   maxRound: number;
@@ -16,8 +23,6 @@ interface Props {
   setTab: (t: Tab) => void;
   theme: "dark" | "light";
   toggleTheme: () => void;
-  inspector: boolean;
-  toggleInspector: () => void;
 }
 
 export function Header(p: Props) {
@@ -27,7 +32,7 @@ export function Header(p: Props) {
     ? "no network · everything runs on this laptop"
     : runOffline
       ? "run started without a teacher"
-      : p.mode === "live"
+      : p.live
         ? "teacher reachable · only synthetic tasks leave"
         : "recorded with the teacher online";
 
@@ -46,19 +51,23 @@ export function Header(p: Props) {
     <header className="header">
       <div className="header-row">
         <h1 className="header-title">{p.title}</h1>
-        <span className="hchip">
-          {p.mode === "live" ? <span className="live-dot on" aria-hidden="true" /> : null}
-          {p.mode === "live" ? "Live tail" : p.isFixture ? "Replay · fixture" : "Replay"}
-        </span>
-        <span className="hchip" aria-label={`Round ${p.round} of ${p.maxRound}`}>
-          Round <b className="mono">{p.round}</b>
-          <span className="faint">/{p.maxRound}</span>
-          <span className="round-pips" aria-hidden="true">
-            {Array.from({ length: p.maxRound + 1 }, (_, r) => (
-              <i key={r} className={r < p.round ? "done" : r === p.round ? "now" : ""} />
-            ))}
+        {p.showTabs && (
+          <span className="hchip">
+            {p.live ? <span className="live-dot on" aria-hidden="true" /> : null}
+            {p.live ? "Live" : p.isFixture ? "Demo replay" : "Replay"}
           </span>
-        </span>
+        )}
+        {p.showTabs && p.run?.mode === "growth" && (
+          <span className="hchip" aria-label={`Round ${p.round} of ${p.maxRound}`}>
+            Round <b className="mono">{p.round}</b>
+            <span className="faint">/{p.maxRound}</span>
+          </span>
+        )}
+        {p.canStop && (
+          <button className="btn-quiet btn-stop" onClick={p.onStop} title="Stop the run (the harness writes run.end on the way out)">
+            Stop run
+          </button>
+        )}
 
         <span className="header-spacer" />
 
@@ -109,21 +118,18 @@ export function Header(p: Props) {
             Deep links: <span className="mono">?pin=ledgerly-07:3</span> · <span className="mono">?at=1200</span> · <span className="mono">?play</span>
           </p>
         </div>
-        <button className={`icon-btn ${p.inspector ? "on" : ""}`} onClick={p.toggleInspector} aria-pressed={p.inspector} aria-label="Toggle growth panel" title="Growth panel (G)">
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" fill="none" stroke="currentColor" strokeWidth="1.3" />
-            <path d="M10 3v10" stroke="currentColor" strokeWidth="1.3" />
-          </svg>
-        </button>
+
       </div>
 
-      <nav className="tabs" role="tablist" aria-label="View">
-        {(["trace", "results"] as const).map((t) => (
-          <button key={t} role="tab" aria-selected={p.tab === t} className={p.tab === t ? "on" : ""} onClick={() => p.setTab(t)}>
-            {t === "trace" ? "Trace" : "Results"}
-          </button>
-        ))}
-      </nav>
+      {p.showTabs && (
+        <nav className="tabs" role="tablist" aria-label="View">
+          {TABS.map((t) => (
+            <button key={t.id} role="tab" aria-selected={p.tab === t.id} className={p.tab === t.id ? "on" : ""} onClick={() => p.setTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      )}
     </header>
   );
 }

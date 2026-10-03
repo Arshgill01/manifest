@@ -1,8 +1,15 @@
 # Manifest GUI
 
-A **read-only viewer** over `.manifest/runs/*.jsonl` (the event log in CONTRACT.md part 1). It replays a growth run
-round by round, or tails the newest run live. It never controls the harness. Vite + React + TypeScript, no UI or chart
+A desktop-app-style GUI over `.manifest/runs/*.jsonl` (the event log in CONTRACT.md part 1). Every run is a **session**:
+finished runs replay, and runs still being written tail live. **New run** starts the harness for you. It spawns the same
+CLIs you'd type (`python -m growth.eval …`, `python -m growth.grow …`) and opens the session as the log fills, so the
+harness itself stays headless and the event log stays the only interface. Vite + React + TypeScript, no UI or chart
 libraries, no CDN: the build works with Wi-Fi off.
+
+> SPEC §8 says "a viewer, never a controller". The launcher is a thin exception the owner asked for. It only spawns
+> the documented CLIs with whitelisted arguments (no shell), one run at a time. It **refuses any model-backed run while
+> a run file in any worktree of this repo is still being written** (8 GB laptop: never two Ollama suites at once).
+> Self-tests (`oracle`) and growth rehearsals (`--fake-teacher --stub-runner`) don't touch Ollama and are always allowed.
 
 ```bash
 cd gui
@@ -15,19 +22,30 @@ npm test           # vitest: parser, derive, trace grouping against the fixture
 `MANIFEST_RUNS_DIR=/some/dir npm run dev` points it elsewhere. With no server at all (any static host), the bundled
 fixture still loads, and any `.jsonl` can be dropped onto the window or opened with **+**.
 
-## What's on screen
+## New run
+
+| Choice | Runs |
+|---|---|
+| Grown harness | `growth.eval --mode manifest --split <s> --profile <p> [--tasks …]` |
+| Student alone | `growth.eval --mode baseline --round 0 --force …` (round-0 behaviour, cache skipped so you can watch it) |
+| Growth run | `growth.grow --rounds N --profile <p>` (needs the teacher, so it's disabled when offline) |
+| Growth rehearsal | `growth.grow … --fake-teacher --stub-runner` (no models) |
+| Runner self-test | `growth.eval --mode oracle …` (no models) |
+
+Profiles come from `tasks/splits.json` (core, full, demo, …). **Stop run** in the header sends SIGINT.
+
+## What's on screen (inside a session)
 
 | Area | Shows |
 |---|---|
-| Sidebar | runs (newest first), **Go live**, the task board (held-out first, then train, gate; one pip per round, ✓/✕ glyphs), student + teacher |
-| Header | run, mode, round, and the big **ONLINE / OFFLINE** pill (`navigator.onLine`, or a run started with `online:false`) |
-| Trace tab | one task attempt. **Code routines** are steel boxes in mono (ƒ). **Student model calls** are amber pills in a serif italic (4B). Warden blocks are vermilion. "Who drove" counts code decisions vs student calls. |
-| Results tab | held-out pass rate by round, student model calls per task by round, the teacher bill |
-| Composer | the replay transport: round-segmented scrubber with clickable story beats (proposal ◆, accepted ●, rejected ●, Warden block ■), mode, speed 1×–20×, play |
-| Growth panel | per round: proposed routine + rationale → Warden permission card → gate before→after → ACCEPTED/REJECTED stamp, plus any runtime Warden blocks |
+| Sidebar | **New run**, sessions (newest first; a pulsing dot = still being written), student + teacher |
+| Header | session, Live/Replay, round, the big **ONLINE / OFFLINE** pill (`navigator.onLine`, or a run started with `online:false`), **Stop run** |
+| Session tab | the run as a conversation: round dividers, one line per task (✓/✕, student calls, time). Click a line to open its trace: **code routines** in steel mono boxes (ƒ), **student calls** in amber pills with a serif-italic voice (4B, expandable to what it saw and said), Warden blocks in vermilion. The teacher's proposals arrive as messages with the Warden permission card, gate result and stamp. |
+| Board · Growth · Results tabs | red→green task grid per round · proposal → Warden → gate per round · held-out pass rate, student calls per task, teacher bill |
+| Composer | replay transport: round-segmented scrubber with clickable story beats, speed 1×–20×, play |
 
-Keys: `space` play/pause · `←/→` rounds · `1–5` speed · `L` live · `G` growth panel · `Esc` follow the run · `?` help.
-Deep links: `?pin=ledgerly-07:3` · `?at=1200` · `?play`. Theme: dark by default; the sun/moon toggle gives a light
+Keys: `space` play/pause · `←/→` rounds · `1–5` speed · `N` new run · `?` help.
+Deep links: `?run=<file prefix>` · `?pin=ledgerly-07:3` · `?at=1200` · `?play`. Theme: dark by default; the sun/moon toggle gives a light
 theme for washed-out projectors.
 
 ## Fixture and live simulation

@@ -73,7 +73,7 @@ export function buildTrace(evs: ManifestEvent[], round: number): Trace {
   if (mode === "manifest" && pending.length) {
     const endIdx = items.findIndex((it) => it.kind === "end");
     // a student "step" inside an unfinished group means the fallback is running: the student is driving
-    const studentDriving = pending.some((e) => e.type === "model.call" && e.role === "student" && e.purpose === "step");
+    const studentDriving = pending.some((e) => e.type === "model.call" && e.role === "student" && (e.purpose === "step" || e.purpose === "chat"));
     const it: TraceItem = studentDriving
       ? { kind: "fallback", ev: null, children: pending, key: pending[0].i }
       : { kind: "routine", ev: null, children: pending, key: pending[0].i };

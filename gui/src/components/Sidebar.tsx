@@ -1,24 +1,23 @@
-import type { ReactNode } from "react";
 import { prettyModel } from "../lib/derive";
 import type { RunStart } from "../lib/types";
-import type { Mode, RunEntry } from "../hooks/useRunSource";
+import type { RunEntry } from "../hooks/useRunSource";
 
 interface Props {
   runs: RunEntry[];
   selected: RunEntry | null;
+  view: "new" | "run";
   onSelect: (r: RunEntry) => void;
-  mode: Mode;
-  onGoLive: () => void;
-  hasRealRuns: boolean;
+  onNew: () => void;
   run: RunStart | null;
-  board: ReactNode;
 }
 
 export function runTitle(r: RunEntry | null) {
   if (!r) return "No run";
   const base = r.name.replace(/\.jsonl$/, "");
   const m = base.match(/^(\d{4})(\d\d)(\d\d)-(\d\d)(\d\d)(\d\d)-(.+)$/);
-  return m ? `${m[7]} · ${m[4]}:${m[5]}` : base;
+  if (!m) return base;
+  const label = m[7].replace(/^gui-/, "").replace(/-/g, " ");
+  return `${label[0].toUpperCase()}${label.slice(1)} · ${m[4]}:${m[5]}`;
 }
 
 function ago(ms?: number) {
@@ -30,23 +29,24 @@ function ago(ms?: number) {
   return `${Math.floor(s / 86400)}d`;
 }
 
-export function Sidebar({ runs, selected, onSelect, mode, onGoLive, hasRealRuns, run, board }: Props) {
+export function Sidebar({ runs, selected, view, onSelect, onNew, run }: Props) {
   const real = runs.filter((r) => r.source === "runs");
   const other = runs.filter((r) => r.source !== "runs");
-  const live = mode === "live";
 
-  const item = (r: RunEntry) => (
-    <li key={r.id}>
-      <button className={`run-item ${selected?.id === r.id ? "on" : ""}`} onClick={() => onSelect(r)} disabled={live} aria-current={selected?.id === r.id ? "true" : undefined}>
-        {live && selected?.id === r.id && <span className="live-dot on" aria-hidden="true" />}
-        <span className="run-name">{runTitle(r)}</span>
-        <span className="run-meta">{r.source === "runs" ? ago(r.mtimeMs) : r.source === "file" ? "file" : "fixture"}</span>
-      </button>
-    </li>
-  );
+  const item = (r: RunEntry) => {
+    const on = view === "run" && selected?.id === r.id;
+    return (
+      <li key={r.id}>
+        <button className={`run-item ${on ? "on" : ""}`} onClick={() => onSelect(r)} aria-current={on ? "true" : undefined} title={r.name}>
+          <span className="run-name">{runTitle(r)}</span>
+          {r.live ? <span className="live-dot on" aria-label="live" /> : <span className="run-meta">{r.source === "runs" ? ago(r.mtimeMs) : r.source === "file" ? "file" : "demo"}</span>}
+        </button>
+      </li>
+    );
+  };
 
   return (
-    <aside className="sidebar" aria-label="Runs and tasks">
+    <aside className="sidebar" aria-label="Runs">
       <div className="sb-brand">
         <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
           <rect width="32" height="32" rx="7" />
@@ -56,22 +56,23 @@ export function Sidebar({ runs, selected, onSelect, mode, onGoLive, hasRealRuns,
         <span className="brand-tag">harness</span>
       </div>
 
-      <button className={`sb-primary ${live ? "is-live" : ""}`} onClick={onGoLive} disabled={!hasRealRuns && !live} title={hasRealRuns ? "Tail the newest run in .manifest/runs (L)" : "No runs in .manifest/runs yet"}>
-        <span className={`live-dot ${live ? "on" : ""}`} aria-hidden="true" />
-        {live ? "Following live run" : "Go live"}
+      <button className={`sb-primary ${view === "new" ? "on" : ""}`} onClick={onNew}>
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M8 5.2v5.6M5.2 8h5.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        </svg>
+        New run
       </button>
 
       <nav className="sb-section" aria-label="Runs">
         <h2 className="sb-h">Runs</h2>
         <ul className="run-list">
           {real.map(item)}
-          {real.length === 0 && <li className="sb-empty">Nothing in .manifest/runs yet</li>}
-          {other.length > 0 && <li className="sb-sub">Fixtures &amp; files</li>}
+          {real.length === 0 && <li className="sb-empty">No runs yet. Start one above.</li>}
+          {other.length > 0 && <li className="sb-sub">Demo &amp; files</li>}
           {other.map(item)}
         </ul>
       </nav>
-
-      <div className="sb-board">{board}</div>
 
       <dl className="sb-foot">
         <div>
@@ -86,9 +87,7 @@ export function Sidebar({ runs, selected, onSelect, mode, onGoLive, hasRealRuns,
           <dt>
             <span className="key key-teacher" aria-hidden="true" /> Teacher
           </dt>
-          <dd>
-            {prettyModel(run?.teacher ?? "deepseek")}
-          </dd>
+          <dd>{prettyModel(run?.teacher ?? "deepseek")}</dd>
         </div>
       </dl>
     </aside>

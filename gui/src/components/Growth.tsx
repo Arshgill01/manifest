@@ -148,6 +148,10 @@ function Gate({ gate, rs, gateTotal }: { gate?: GateResult; rs: RoundState; gate
       );
     return null;
   }
+  return <GateLine gate={gate} gateTotal={gateTotal} />;
+}
+
+export function GateLine({ gate, gateTotal }: { gate: GateResult; gateTotal: number }) {
   if (gate.gateAfter == null) {
     return (
       <div className="gate gate-skip">
@@ -261,7 +265,7 @@ function chips(xs: string[] | undefined, beyond: (x: string) => boolean, tone: s
   ));
 }
 
-function Stamp({ accepted }: { accepted: boolean }) {
+export function Stamp({ accepted }: { accepted: boolean }) {
   return (
     <div className={`stamp ${accepted ? "stamp-ok" : "stamp-no"}`} role="status">
       <span>{accepted ? "Accepted" : "Rejected"}</span>

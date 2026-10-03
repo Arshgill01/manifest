@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Connect, Plugin } from "vite";
+import { isLive, launchHandler } from "./launch.ts";
 
 const GUI_DIR = path.resolve(import.meta.dirname, "..");
 const SOURCES: Record<string, string> = {
@@ -24,8 +25,9 @@ function list() {
       continue;
     }
     for (const name of names) {
-      const st = fs.statSync(path.join(dir, name));
-      runs.push({ id: `${source}/${name}`, name, source, size: st.size, mtimeMs: st.mtimeMs });
+      const file = path.join(dir, name);
+      const st = fs.statSync(file);
+      runs.push({ id: `${source}/${name}`, name, source, size: st.size, mtimeMs: st.mtimeMs, live: source === "runs" && isLive(file) });
     }
   }
   // real runs first, newest first; fixtures last
@@ -71,9 +73,11 @@ export function runsPlugin(): Plugin {
   return {
     name: "manifest-runs",
     configureServer(server) {
+      server.middlewares.use(launchHandler(SOURCES.runs));
       server.middlewares.use(handler);
     },
     configurePreviewServer(server) {
+      server.middlewares.use(launchHandler(SOURCES.runs));
       server.middlewares.use(handler);
     },
   };

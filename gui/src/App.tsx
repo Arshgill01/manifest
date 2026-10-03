@@ -3,16 +3,19 @@ import { Sidebar, runTitle } from "./components/Sidebar";
 import { Header, type Tab } from "./components/Header";
 import { Composer, markersOf } from "./components/Composer";
 import { TaskBoard } from "./components/TaskBoard";
-import { Trace } from "./components/Trace";
+import { Transcript } from "./components/Transcript";
 import { Growth } from "./components/Growth";
 import { Results } from "./components/Results";
-import { useRunSource } from "./hooks/useRunSource";
+import { NewRun } from "./components/NewRun";
+import { useRunSource, type RunEntry } from "./hooks/useRunSource";
+import { useLauncher, type LaunchRequest } from "./hooks/useLauncher";
 import { SPEEDS, usePlayback } from "./hooks/usePlayback";
 import { useNetworkOnline } from "./hooks/useOnline";
 import { derive } from "./lib/derive";
 import { fmtClock } from "./lib/format";
 
 type Theme = "dark" | "light";
+type Focus = { taskId: string; round: number; nonce: number };
 const store = {
   get: (k: string) => {
     try {
@@ -33,16 +36,17 @@ const store = {
 export default function App() {
   return (
     <Boundary>
-      <Viewer />
+      <Shell />
     </Boundary>
   );
 }
 
-function Viewer() {
+function Shell() {
   const src = useRunSource();
-  const { events, index, version } = src;
+  const launcher = useLauncher();
+  const { events, index, version, tailing } = src;
   const count = events.length;
-  const pb = usePlayback(index.ct, count, { follow: src.mode === "live" });
+  const pb = usePlayback(index.ct, count, { follow: tailing });
   const n = Math.min(pb.n, count); // usePlayback's own clamp lands a render late when a shorter run loads
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const d = useMemo(() => derive(events, n), [version, n]);
@@ -50,43 +54,76 @@ function Viewer() {
   const markers = useMemo(() => markersOf(events), [version]);
   const netOnline = useNetworkOnline();
 
-  const [tab, setTab] = useState<Tab>("trace");
+  const [view, setView] = useState<"new" | "run">("run");
+  const [tab, setTab] = useState<Tab>("session");
+  const [focus, setFocus] = useState<Focus | null>(null);
   const [theme, setTheme] = useState<Theme>(() => (store.get("manifest.theme") as Theme) || "dark");
-  const [inspector, setInspector] = useState(() => store.get("manifest.inspector") !== "0");
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     store.set("manifest.theme", theme);
   }, [theme]);
-  useEffect(() => store.set("manifest.inspector", inspector ? "1" : "0"), [inspector]);
 
-  // ?pin=ledgerly-07:3 opens straight onto one attempt (handy for the presenter)
-  const [pin, setPin] = useState<{ taskId: string; round: number } | null>(() => {
-    const m = new URLSearchParams(location.search).get("pin")?.match(/^([\w.-]+):(\d+)$/);
-    return m ? { taskId: m[1], round: Number(m[2]) } : null;
-  });
-  const urlPin = useRef(pin);
-  const focus = pin ?? d.active;
+  const { setSelected } = src;
+  const open = useCallback(
+    (r: RunEntry) => {
+      setSelected(r);
+      setView("run");
+      setTab("session");
+      setFocus(null);
+    },
+    [setSelected],
+  );
+  const pick = useCallback((taskId: string, round: number) => {
+    setFocus({ taskId, round, nonce: Date.now() });
+    setTab("session");
+  }, []);
 
-  // a freshly opened replay shows the whole story; press play to watch it unfold from the start
+  // first visit: open the newest real run (a live one first); with none, the new-run composer
+  const booted = useRef(false);
+  useEffect(() => {
+    if (booted.current || !src.runs.length) return;
+    booted.current = true;
+    const real = src.runs.filter((r) => r.source === "runs");
+    const want = new URLSearchParams(location.search).get("run");
+    const first = (want && src.runs.find((r) => r.name.startsWith(want))) || real.find((r) => r.live) || real[0];
+    if (first) open(first);
+    else if (launcher.available) setView("new");
+    else open(src.runs[0]);
+  }, [src.runs, launcher.available, open]);
+
+  // a run you just started: open its session as soon as its log file appears
+  const launchedAt = useRef<number | null>(null);
+  useEffect(() => {
+    const t = launchedAt.current;
+    if (!t) return;
+    const fresh = src.runs.find((r) => r.source === "runs" && (r.mtimeMs ?? 0) >= t - 1500);
+    if (fresh) {
+      launchedAt.current = null;
+      open(fresh);
+    }
+  }, [src.runs, open]);
+  const launch = async (req: LaunchRequest) => {
+    const started = await launcher.launch(req);
+    if (started) {
+      launchedAt.current = started.startedAt;
+      src.refreshList();
+    }
+  };
+
+  // a finished run opens on its whole story (press play to watch it from the start); ?pin=task:round opens one attempt
   const shownFor = useRef<string | null>(null);
   useEffect(() => {
     const id = src.selected?.id ?? null;
-    if (src.mode !== "replay" || src.loadedId !== id || !id || shownFor.current === id) return;
+    if (src.loadedId !== id || !id || shownFor.current === id) return;
     shownFor.current = id;
-    setPin(urlPin.current);
-    urlPin.current = null;
-    // ?at=<event#> opens at a point in the run; ?play starts playback (presenter shortcuts)
     const q = new URLSearchParams(location.search);
+    const m = q.get("pin")?.match(/^([\w.-]+):(\d+)$/);
+    if (m) setFocus({ taskId: m[1], round: Number(m[2]), nonce: Date.now() });
+    if (tailing) return;
     const at = Number(q.get("at"));
     pb.seek(q.has("at") && Number.isFinite(at) ? at : count);
     pb.setPlaying(q.has("play"));
-  }, [src.mode, src.loadedId, src.selected?.id, count, pb]);
-  useEffect(() => {
-    if (src.mode === "live") {
-      shownFor.current = null;
-      setPin(null);
-    }
-  }, [src.mode]);
+  }, [src.loadedId, src.selected?.id, count, pb, tailing]);
 
   const seekRound = useCallback(
     (r: number) => {
@@ -94,18 +131,24 @@ function Viewer() {
       if (start === undefined) return;
       pb.setFollowing(false);
       pb.seek(start + 1);
-      setPin(null);
     },
     [index, pb],
   );
-  const { setMode, mode, hasRealRuns, openFile } = src;
-  const toggleLive = useCallback(() => setMode(mode === "live" ? "replay" : "live"), [setMode, mode]);
 
-  // keyboard: space play/pause · ←/→ round · 1–5 speed · L live · G growth panel · Esc unpin
+  // keyboard: space play/pause · ←/→ round · 1–5 speed · N new run · ? help
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest("input, select, textarea, [role=slider]") || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "?") {
+        document.getElementById("keys")?.togglePopover?.();
+        return;
+      }
+      if (e.key.toLowerCase() === "n") {
+        setView("new");
+        return;
+      }
+      if (view !== "run") return;
       if (e.key === " " && !t.closest("button")) {
         e.preventDefault();
         pb.toggle();
@@ -116,22 +159,15 @@ function Viewer() {
         else seekRound(Math.max(0, next));
       } else if (/^[1-5]$/.test(e.key)) {
         pb.setSpeed(SPEEDS[Number(e.key) - 1]);
-      } else if (e.key.toLowerCase() === "l" && hasRealRuns) {
-        toggleLive();
-      } else if (e.key.toLowerCase() === "g") {
-        setInspector((x) => !x);
-      } else if (e.key === "Escape") {
-        setPin(null);
-      } else if (e.key === "?") {
-        document.getElementById("keys")?.togglePopover?.();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pb, d.round, n, index, count, seekRound, hasRealRuns, toggleLive]);
+  }, [view, pb, d.round, n, index, count, seekRound]);
 
   // drop a .jsonl anywhere
   const [dragging, setDragging] = useState(false);
+  const openFile = src.openFile;
   useEffect(() => {
     const over = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) {
@@ -148,6 +184,7 @@ function Viewer() {
       const f = e.dataTransfer?.files[0];
       if (f) {
         shownFor.current = null;
+        setView("run");
         openFile(f);
       }
     };
@@ -162,29 +199,21 @@ function Viewer() {
   }, [openFile]);
 
   const isFixture = src.selected?.source === "fixture" || src.selected?.source === "bundled";
+  const activeRun = src.runs.find((r) => r.source === "runs" && r.live);
 
   return (
-    <div className={`app ${inspector ? "with-inspector" : ""}`} data-mode={mode}>
-      <Sidebar
-        runs={src.runs}
-        selected={src.selected}
-        onSelect={(r) => {
-          shownFor.current = null;
-          src.setSelected(r);
-        }}
-        mode={mode}
-        onGoLive={toggleLive}
-        hasRealRuns={hasRealRuns}
-        run={d.run}
-        board={<TaskBoard index={index} d={d} focus={focus} onPick={(taskId, round) => setPin({ taskId, round })} />}
-      />
+    <div className="app">
+      <Sidebar runs={src.runs} selected={src.selected} view={view} onSelect={open} onNew={() => setView("new")} run={d.run} />
 
       <main className="main">
         <Header
-          title={runTitle(src.selected)}
+          title={view === "new" ? "New run" : runTitle(src.selected)}
           isFixture={isFixture}
-          mode={mode}
-          run={d.run}
+          live={tailing}
+          canStop={!!launcher.active && view === "run" && tailing}
+          onStop={launcher.stop}
+          showTabs={view === "run"}
+          run={view === "run" ? d.run : null}
           round={d.round}
           maxRound={index.maxRound}
           netOnline={netOnline}
@@ -192,86 +221,84 @@ function Viewer() {
           setTab={setTab}
           theme={theme}
           toggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-          inspector={inspector}
-          toggleInspector={() => setInspector((x) => !x)}
         />
-        {(src.skipped > 0 || src.load === "error" || (mode === "live" && count === 0)) && (
-          <div className="notices" role="status">
-            {mode === "live" && count === 0 && src.load !== "error" && (
-              <p className="notice">
-                <span className="wait-dot" aria-hidden="true" /> Waiting for the first event in <span className="mono">{src.selected?.name ?? "the newest run"}</span>…
-              </p>
-            )}
-            {src.skipped > 0 && (
-              <p className="notice notice-warn">
-                Skipped {src.skipped} malformed line{src.skipped === 1 ? "" : "s"}. Everything else is shown.
-              </p>
-            )}
-            {src.load === "error" && (
-              <p className="notice notice-warn">
-                Couldn't read <span className="mono">{src.selected?.name}</span>: {src.error}
-              </p>
-            )}
-          </div>
-        )}
-        <div className="stage">
-          {tab === "trace" ? (
-            <Trace events={events} index={index} n={n} focus={focus} pinned={!!pin} onUnpin={() => setPin(null)} version={version} />
-          ) : (
-            <Results d={d} index={index} />
-          )}
-        </div>
-        <Composer
-          mode={mode}
-          setMode={setMode}
-          hasRealRuns={hasRealRuns}
-          onOpenFile={(f) => {
-            shownFor.current = null;
-            openFile(f);
-          }}
-          index={index}
-          count={count}
-          n={n}
-          playing={pb.playing}
-          following={pb.following}
-          speed={pb.speed}
-          setSpeed={pb.setSpeed}
-          toggle={pb.toggle}
-          seek={(x) => {
-            pb.setFollowing(false);
-            pb.seek(x);
-          }}
-          goLive={() => {
-            setPin(null);
-            pb.setFollowing(true);
-          }}
-          markers={markers}
-          onMarker={(m) => {
-            pb.setFollowing(false);
-            pb.setPlaying(false);
-            pb.seek(m.i + 1);
-            setPin(m.taskId ? { taskId: m.taskId, round: m.round } : null);
-            if (m.taskId) setTab("trace");
-            else setInspector(true);
-          }}
-          clock={fmtClock(d.last?.ts)}
-          d={d}
-        />
-      </main>
 
-      {inspector && (
-        <aside className="inspector" aria-label="Growth timeline">
-          <Growth
-            d={d}
-            index={index}
-            onJumpRound={seekRound}
-            onPick={(taskId, round) => {
-              setPin({ taskId, round });
-              setTab("trace");
-            }}
+        {view === "new" ? (
+          <NewRun
+            available={launcher.available}
+            profiles={launcher.profiles}
+            busy={launcher.active ? null : launcher.busy}
+            active={launcher.active}
+            error={launcher.error}
+            online={netOnline}
+            onLaunch={launch}
+            onOpenActive={() => activeRun && open(activeRun)}
           />
-        </aside>
-      )}
+        ) : (
+          <>
+            {(src.skipped > 0 || src.load === "error") && (
+              <div className="notices" role="status">
+                {src.skipped > 0 && (
+                  <p className="notice notice-warn">
+                    Skipped {src.skipped} malformed line{src.skipped === 1 ? "" : "s"}. Everything else is shown.
+                  </p>
+                )}
+                {src.load === "error" && (
+                  <p className="notice notice-warn">
+                    Couldn't read <span className="mono">{src.selected?.name}</span>: {src.error}
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="stage">
+              {tab === "session" && (
+                <Transcript events={events} index={index} d={d} n={n} version={version} following={pb.following || pb.playing} focus={focus} />
+              )}
+              {tab === "board" && (
+                <div className="tab-page">
+                  <TaskBoard index={index} d={d} focus={focus} onPick={pick} />
+                </div>
+              )}
+              {tab === "growth" && (
+                <div className="tab-page">
+                  <Growth d={d} index={index} onJumpRound={seekRound} onPick={pick} />
+                </div>
+              )}
+              {tab === "results" && <Results d={d} index={index} />}
+            </div>
+            <Composer
+              live={tailing}
+              onOpenFile={(f) => {
+                shownFor.current = null;
+                openFile(f);
+              }}
+              index={index}
+              count={count}
+              n={n}
+              playing={pb.playing}
+              following={pb.following}
+              speed={pb.speed}
+              setSpeed={pb.setSpeed}
+              toggle={pb.toggle}
+              seek={(x) => {
+                pb.setFollowing(false);
+                pb.seek(x);
+              }}
+              goLive={() => pb.setFollowing(true)}
+              markers={markers}
+              onMarker={(m) => {
+                pb.setFollowing(false);
+                pb.setPlaying(false);
+                pb.seek(m.i + 1);
+                if (m.taskId) pick(m.taskId, m.round);
+                else setTab("growth");
+              }}
+              clock={fmtClock(d.last?.ts)}
+              d={d}
+            />
+          </>
+        )}
+      </main>
 
       {dragging && (
         <div className="dropzone" aria-hidden="true">

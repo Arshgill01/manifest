@@ -2,7 +2,6 @@ import { useMemo, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import type { Derived, RunIndex } from "../lib/derive";
 import { indexAtTime } from "../lib/derive";
 import type { ManifestEvent } from "../lib/types";
-import type { Mode } from "../hooks/useRunSource";
 import { SPEEDS, type Speed } from "../hooks/usePlayback";
 import { fmtPct, fmtUsd } from "../lib/format";
 
@@ -26,9 +25,7 @@ export function markersOf(events: ManifestEvent[]): Marker[] {
 }
 
 interface Props {
-  mode: Mode;
-  setMode: (m: Mode) => void;
-  hasRealRuns: boolean;
+  live: boolean;
   onOpenFile: (f: File) => void;
   index: RunIndex;
   count: number;
@@ -53,7 +50,7 @@ export function Composer(p: Props) {
   const pos = n > 0 && count ? index.ct[n - 1] / total : 0;
   const rail = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const isLive = p.mode === "live";
+  const isLive = p.live;
 
   const segments = useMemo(() => {
     const starts = index.roundStart.filter((x) => x < count);
@@ -168,17 +165,10 @@ export function Composer(p: Props) {
               e.target.value = "";
             }}
           />
-          <label className="chip-select" title={!p.hasRealRuns ? "Live needs a run in .manifest/runs" : "Replay a recorded run, or tail the newest one (L)"}>
+          <span className="chip-static">
             {isLive ? <span className="live-dot on" aria-hidden="true" /> : <ReplayIcon />}
-            <span className="sr-only">Mode</span>
-            <select value={p.mode} onChange={(e) => p.setMode(e.target.value as Mode)}>
-              <option value="replay">Replay</option>
-              <option value="live" disabled={!p.hasRealRuns}>
-                Live tail
-              </option>
-            </select>
-            <Chevron />
-          </label>
+            {isLive ? (p.following ? "Live" : "Live · paused") : "Replay"}
+          </span>
           <span className="composer-clock mono">
             {p.clock}
             <span className="faint">
