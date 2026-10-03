@@ -276,7 +276,7 @@ class Teacher:
         base_url: str | None = None,
         api_key: str | None = None,
         prices: Prices | None = None,
-        max_tokens: int = 8000,
+        max_tokens: int = 32000,  # reasoning tokens count against this; 8000 truncated real proposals
     ):
         load_env()
         self.log = log
@@ -309,7 +309,7 @@ class Teacher:
         return proposal.model_dump()
 
     def summarize_code(self, src: str) -> list[str]:
-        result = self._json_call("warden-summarize", render_summarize_messages(src), _Findings.model_validate, max_tokens=2000)
+        result = self._json_call("warden-summarize", render_summarize_messages(src), _Findings.model_validate, max_tokens=8000)
         return [f for f in result.findings if f.strip()]
 
     # ---- internals
