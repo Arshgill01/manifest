@@ -82,3 +82,23 @@ def test_splits_are_disjoint_and_known():
         seen = [t for ids in profile.values() for t in ids]
         assert len(seen) == len(set(seen))
         assert set(seen) <= set(INDEX)
+
+
+def test_round0_cache_hits_with_explicit_ids(tmp_path, monkeypatch):
+    import growth.eval as ev
+    from harness.log import EventLog
+
+    monkeypatch.setattr(ev, "CACHE", tmp_path / "cache")
+    monkeypatch.setattr(ev, "WORK", tmp_path / "work")
+    calls = []
+    real = ev.run_one
+    monkeypatch.setattr(ev, "run_one", lambda *a, **k: calls.append(a) or real(*a, **k))
+    ids = sorted(INDEX)[:2]
+    # baseline needs track B; "noop" semantics are enough here, so pretend via mode check bypass
+    monkeypatch.setattr(ev, "HARNESS_MODES", ())
+    monkeypatch.setattr(ev, "SELFTEST_MODES", ("noop", "baseline"))
+    first = ev.run_split("train", mode="baseline", round=0, log=EventLog(), task_ids=ids)
+    log2 = EventLog()
+    second = ev.run_split("train", mode="baseline", round=0, log=log2, task_ids=ids)
+    assert len(calls) == 2 and first["passed"] == second["passed"] == 0
+    assert log2.events and all(e.get("cached") for e in log2.events)

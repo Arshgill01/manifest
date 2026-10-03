@@ -179,9 +179,11 @@ def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str
               task_ids: list[str] | None = None, profile: str = "core", max_steps: int = 12,
               max_seconds: int = 120, executor=None, use_cache: bool = True) -> dict:
     """Run `mode` over a split. Round-0 baseline results are cached and replayed, never recomputed."""
-    ids = task_ids or task_ids_for(split, profile)
-    cache_file = CACHE / f"round0-{profile}-{split}.json"
-    cacheable = mode == "baseline" and round == 0 and task_ids is None
+    ids = list(task_ids or task_ids_for(split, profile))
+    # keyed on the exact task list, so callers passing explicit ids (growth loop) still hit it
+    key = hashlib.sha256(",".join(ids).encode()).hexdigest()[:10]
+    cache_file = CACHE / f"round0-{split}-{key}.json"
+    cacheable = mode == "baseline" and round == 0
     if cacheable and use_cache and cache_file.exists():
         cached = json.loads(cache_file.read_text())
         for outcome in cached["results"]:
