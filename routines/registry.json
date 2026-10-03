@@ -1,4 +1,17 @@
 [
-  {"name": "start", "path": "routines/seed/start", "source": "seed"},
-  {"name": "ask-student", "path": "routines/seed/ask-student", "source": "seed"}
+  {
+    "name": "start",
+    "path": "routines/seed/start",
+    "source": "seed"
+  },
+  {
+    "name": "triage-fix",
+    "path": "routines/grown/triage-fix",
+    "source": "grown"
+  },
+  {
+    "name": "ask-student",
+    "path": "routines/seed/ask-student",
+    "source": "seed"
+  }
 ]

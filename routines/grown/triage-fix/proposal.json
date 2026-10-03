@@ -1,0 +1,20 @@
+{
+  "name": "triage-fix",
+  "rationale": "The ratekeeper-03 trace shows the failure mode precisely: after `start`, the student burned all 9 model calls reading whole modules one by one (limiter.py, bucket.py, quota.py, clock.py, tests, headers.py) and never applied a single edit or re-ran the suite \u2014 it timed out mid-read. The full-suite run it did trigger produced 5 failures with traceback frames, but nothing in the loop converted those frames into a concrete location, a bounded code window, or a demanded patch. This routine moves that whole control sequence into deterministic code: run the FULL suite, pick the innermost non-test frame from the failure, read a bounded window around that line, ask the student exactly one focused question ('give one search/replace for this file'), apply it, and re-run the full suite to check. It is bounded to 3 runs and bails after 2 unappliable patches so `ask-student` still gets the wheel; it also leaves `suspect`/`context_snippet`/`patches` populated, which the fallback digest already surfaces. This directly kills the read-forever, never-patch, never-re-run pathologies.",
+  "trigger_description": "Runs immediately after `start` on any task that is not yet done, up to 3 times, and once more is disabled after two patches the student could not apply. It first runs the full suite (marking the task done if it is already green), then localises the top failure, and drives one diagnose-and-patch cycle.",
+  "requested_permissions": {
+    "read": [
+      "**"
+    ],
+    "write": [
+      "src/**"
+    ],
+    "commands": [
+      "python -m pytest"
+    ],
+    "network": false
+  },
+  "round": 2,
+  "teacher": "deepseek-flash",
+  "runId": "20261003-135116-growth"
+}

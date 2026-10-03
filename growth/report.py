@@ -42,6 +42,7 @@ def summarize(events: list[dict]) -> dict:
         "manifests": manifests, "gates": gates, "blocks": blocks,
         "teacherCost": sum(e.get("costUsd") or 0 for e in teacher),
         "teacherCalls": len(teacher),
+        "teacherProposeCalls": [e for e in teacher if e.get("purpose") == "propose"],
         "teacherTokens": (sum(e.get("promptTokens") or 0 for e in teacher), sum(e.get("outTokens") or 0 for e in teacher),
                           sum(e.get("cacheHitTokens") or 0 for e in teacher)),
         "studentCalls": len(student),
@@ -73,10 +74,17 @@ def render(s: dict, run_path: Path) -> str:
         if first.get("avgModelCalls"):
             delta = 100 * (first["avgModelCalls"] - last["avgModelCalls"]) / first["avgModelCalls"]
             lines += ["", f"**Held-out pass: {first['passed']}/{first['total']} → {last['passed']}/{last['total']}; "
-                          f"model calls per task: {first['avgModelCalls']:.1f} → {last['avgModelCalls']:.1f} ({delta:+.0f}% fewer).**"
+                          f"model calls per task: {first['avgModelCalls']:.1f} → {last['avgModelCalls']:.1f} ({delta:.0f}% fewer).**"
                       if delta >= 0 else
                       f"**Held-out pass: {first['passed']}/{first['total']} → {last['passed']}/{last['total']}; "
                       f"model calls per task: {first['avgModelCalls']:.1f} → {last['avgModelCalls']:.1f}.**"]
+    held = [(rnd, e) for rnd in sorted(s["byRound"])
+            for e in sorted(s["byRound"][rnd].get("heldout", []), key=lambda t: t["taskId"])]
+    if held:
+        lines += ["", "| Round | Held-out task | Result | Model calls | Seconds | Stop |", "|---|---|---|---|---|---|"]
+        for rnd, e in held:
+            lines.append(f"| {rnd} | `{e['taskId']}` | {'**pass**' if e['pass'] else 'fail'} | {e['modelCalls']} | "
+                         f"{e['ms'] / 1000:.0f} | {e.get('stopReason') or ''} |")
     lines.append("")
 
     # growth timeline
@@ -113,7 +121,17 @@ def render(s: dict, run_path: Path) -> str:
               f"**${s['teacherCost']:.4f} total**.",
               f"- Student: {s['studentCalls']} local calls, {s['studentPromptTokens']:,} prompt tokens, $0 (runs on the laptop).",
               f"- Warden runtime blocks during the run: {len(s['blocks'])}.", ""]
-    lines += ["## Honest notes", "",
+    failed_props = [e for e in s["teacherProposeCalls"] if e.get("round") not in {p["round"] for p in s["proposals"]}]
+    lost = sorted({e.get("round") for e in failed_props})
+    lines += ["## Honest notes", ""]
+    if lost:
+        lines.append(f"- Round(s) {', '.join(map(str, lost))}: the teacher's proposal was cut off twice (DeepSeek counts reasoning "
+                     "tokens against the 8k output cap), so no routine was proposed; the cap is now 32k.")
+    if not s["end"]:
+        last_round = max(s["byRound"]) if s["byRound"] else 0
+        lines.append(f"- The run was stopped by hand after round {last_round} to keep the laptop free for the live demo; "
+                     "every completed round is fully logged.")
+    lines += [
               "- Per-task wall clock is 240 s for both the baseline and the grown harness (SPEC said 120 s; on this "
               "8 GB M1 a plain tool loop could only make ~5 model calls in 120 s, which would have rigged the comparison).",
               "- `core` profile (3/3/3 tasks) because a full 26-task growth run does not fit an 8 GB laptop before the deadline; "

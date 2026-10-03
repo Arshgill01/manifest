@@ -1,0 +1,143 @@
+{
+  "skill": "triage-fix",
+  "read": [
+    "**"
+  ],
+  "write": [
+    "src/**"
+  ],
+  "commands": [
+    "python -m pytest"
+  ],
+  "network": false,
+  "findings": [
+    {
+      "rule": "touches-tests",
+      "severity": "low",
+      "file": "routine.py",
+      "line": 33,
+      "detail": "references test files 'tests/'"
+    },
+    {
+      "rule": "touches-tests",
+      "severity": "low",
+      "file": "routine.py",
+      "line": 113,
+      "detail": "references test files 'tests/'"
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Defines routine 'triage-fix' that runs the full test suite via tools.run_tests(), storing output (truncated to 20000 chars), failure records, and last_full_run pass/fail counts in state."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Picks the first failure and extracts test name, first error line (truncated to 200 chars), and traceback frames."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Chooses the innermost non-test frame by filtering to relative .py paths and excluding tests/, conftest.py, site-packages, dist-packages, and /lib/python paths, falling back to the last frame if none match."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Reads a bounded source window (line-20 to line+65) around the suspect frame via tools.read_file() and stores it in state.context_snippet."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Builds a prompt with test name, error, traceback, and file snippet, then calls student.ask(\"patch\", prompt) to request one search/replace edit."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Applies the returned patch via tools.edit_file(target, search, replace), accepting file/path, search/find, and replace/replacement keys."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Patch guard only checks that the target ends with .py, does not start with 'tests/', has a non-empty search, and is not already recorded; it does not reject absolute paths or '../' traversal."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Records each attempted patch (file, search, replace, ok) in state.patches."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Re-runs the full suite via tools.run_tests() after each patch and sets state.done/summary based on pass/fail."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Caps total runs at MAX_RUNS=3 via applies() and, after two unappliable patches, sets state.notes['triage_giveup']=True to hand control back to ask-student."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No network access: no imports of socket, requests, urllib, http, or similar networking modules."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No subprocess or process execution: no os.system, subprocess, exec, eval, compile, or importlib dynamic code execution."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No environment or credential reads: no os.environ, getenv, keyring, or secret/token access."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "File access is limited to tools.read_file() (bounded window) and tools.edit_file() (search/replace patch); tests/ is read but never written."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Docstring claim of 'no env' is consistent with the code, but tools.read_file/edit_file could access paths outside the working directory if the tool layer does not enforce containment."
+    }
+  ],
+  "verdict": "ok",
+  "reasons": [],
+  "undeclared": {
+    "read": [],
+    "commands": [],
+    "network": false
+  },
+  "hosts": [],
+  "declaredFrom": "requested"
+}
