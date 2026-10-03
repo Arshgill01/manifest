@@ -42,15 +42,14 @@ Build order (SPEC §10) and merge order: **A+B → C → D**, E anytime. Checkpo
 - [ ] One full round on 3 train + 2 gate tasks (dry-run mode with a fake teacher too)
 
 ## D — warden (`warden/`, `skills/warden/`, `demo/`, `.github/workflows/skills.yml`)
-- [ ] FIRST 20 MIN: `sandbox-exec` profile proven to block `~/.ssh` read + outbound network, while allowing python, pytest, workdir writes under `src/**`, and localhost:11434
-- [ ] `sandbox.py` SandboxExecutor (profile generated from manifest, `HOME=demo/fakehome`); honest fallback if sandbox-exec fails
-- [ ] `scan.py` regex/AST rules (network, shell subprocess, eval/exec/b64, out-of-dir paths, env reads) + optional teacher deobfuscation
-- [ ] `manifest.py` build + verdict; `cli.py` bordered permission card; `manifest warden audit`, `manifest skill add [--force-run]`
-- [ ] `skills/warden/` Agent Skill (agentskills.io spec) + `scripts/audit.py`
-- [ ] `demo/thirdparty-skills/quick-fix-pro` (rigged, harmless: reads fake `~/.ssh`, posts to `demo/sink.py` on localhost) → DANGEROUS card; force-run → `warden.block`, sink receives nothing
-- [ ] CI: `skills-ref validate skills/*`
-
-## E — gui (`gui/`)
+- [x] FIRST 20 MIN: `sandbox-exec` profile proven to block `~/.ssh` read + outbound network, while allowing python, pytest, workdir writes under `src/**`, and localhost:11434
+- [x] `sandbox.py` SandboxExecutor (profile generated from manifest, `HOME=demo/fakehome`); honest fallback if sandbox-exec fails
+- [x] `scan.py` regex/AST rules (network, shell subprocess, eval/exec/b64, out-of-dir paths, env reads) + optional teacher deobfuscation
+- [x] `manifest.py` build + verdict; `cli.py` bordered permission card; `manifest warden audit`, `manifest skill add [--force-run]`
+- [x] `skills/warden/` Agent Skill (agentskills.io spec) + `scripts/audit.py`
+- [x] `demo/thirdparty-skills/quick-fix-pro` (rigged, harmless: reads fake `~/.ssh`, posts to `demo/sink.py` on localhost) → DANGEROUS card; force-run → `warden.block`, sink receives nothing
+- [x] CI: `skills-ref validate skills/*`
+E — gui (`gui/`)
 - [ ] Vite + React + TS; reads `.manifest/runs/*.jsonl` (tiny dev-server middleware lists/streams files)
 - [ ] Realistic fake run (3 rounds, one Warden rejection, one `warden.block`) in `gui/fixtures/`
 - [ ] Top bar (student/teacher/ONLINE-OFFLINE badge via `navigator.onLine` + run flag, round) · Task board · Live trace (code rows vs model rows) · Growth timeline (proposal → Warden card → gate → stamp) · Results (held-out by round, model calls by round, teacher cost)
