@@ -54,10 +54,11 @@ Build order (SPEC §10) and merge order: **A+B → C → D**, E anytime. Checkpo
 - [x] `skills/warden/` Agent Skill (agentskills.io spec) + `scripts/audit.py`
 - [x] `demo/thirdparty-skills/quick-fix-pro` (rigged, harmless: reads fake `~/.ssh`, posts to `demo/sink.py` on localhost) → DANGEROUS card; force-run → `warden.block`, sink receives nothing
 - [x] CI: `skills-ref validate skills/*`
-E — gui (`gui/`)
-- [ ] Vite + React + TS; reads `.manifest/runs/*.jsonl` (tiny dev-server middleware lists/streams files)
-- [ ] Realistic fake run (3 rounds, one Warden rejection, one `warden.block`) in `gui/fixtures/`
-- [ ] Top bar (student/teacher/ONLINE-OFFLINE badge via `navigator.onLine` + run flag, round) · Task board · Live trace (code rows vs model rows) · Growth timeline (proposal → Warden card → gate → stamp) · Results (held-out by round, model calls by round, teacher cost)
-- [ ] Replay (1×–20×, scrub by round) + Live (tail newest file)
-- [ ] `/impeccable critique` + `/impeccable polish`; deliberate, not a default dashboard
-- [ ] Works fully offline (no CDN fonts at runtime — bundle them)
+
+## E — gui (`gui/`)
+- [x] Vite + React + TS; reads `.manifest/runs/*.jsonl` (tiny dev-server middleware lists/streams files)
+- [x] Realistic fake run (3 rounds, one Warden rejection, one `warden.block`) in `gui/fixtures/`
+- [x] Top bar (student/teacher/ONLINE-OFFLINE badge via `navigator.onLine` + run flag, round) · Task board · Live trace (code rows vs model rows) · Growth timeline (proposal → Warden card → gate → stamp) · Results (held-out by round, model calls by round, teacher cost)
+- [x] Replay (1×–20×, scrub by round) + Live (tail newest file)
+- [x] `/impeccable critique` + `/impeccable polish`; deliberate, not a default dashboard
+- [x] Works fully offline (no CDN fonts at runtime — bundle them)

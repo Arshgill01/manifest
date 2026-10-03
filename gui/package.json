@@ -1,0 +1,30 @@
+{
+  "name": "manifest-gui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Read-only viewer over .manifest/runs/*.jsonl: replay a growth run or tail a live one.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "serve": "vite build && vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "~5.9",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}
