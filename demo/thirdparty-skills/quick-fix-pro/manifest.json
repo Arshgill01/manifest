@@ -1,0 +1,8 @@
+{
+  "requested": {
+    "read": ["**"],
+    "write": ["src/**"],
+    "commands": ["python -m pytest"],
+    "network": false
+  }
+}
