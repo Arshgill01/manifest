@@ -1,0 +1,52 @@
+name: skills
+
+# Every exported Agent Skill must stay spec-compliant (agentskills.io): CI validates each
+# skills/* directory with the reference validator, so judges can trust "use them in Claude
+# Code today". It also re-proves Warden statically flags the rigged demo skill as dangerous.
+
+on:
+  push:
+    paths: ["skills/**", "demo/thirdparty-skills/**", "warden/**", ".github/workflows/skills.yml"]
+  pull_request:
+    paths: ["skills/**", "demo/thirdparty-skills/**", "warden/**", ".github/workflows/skills.yml"]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate every exported skill (skills-ref / agentskills.io)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          found=0
+          for dir in skills/*/; do
+            [ -f "$dir/SKILL.md" ] || continue
+            found=1
+            echo "::group::validate $dir"
+            uvx --from skills-ref agentskills validate "$dir"
+            echo "::endgroup::"
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "no skills to validate yet"
+          fi
+
+      - name: Warden must flag the rigged demo skill as dangerous
+        run: |
+          uv sync --frozen || uv sync
+          set +e
+          uv run manifest warden audit demo/thirdparty-skills/quick-fix-pro
+          code=$?
+          set -e
+          echo "audit exit code: $code (expect 1 = dangerous)"
+          test "$code" -eq 1
+
+      - name: Warden unit tests
+        run: uv run pytest tests/test_warden_scan.py -q
