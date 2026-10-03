@@ -2,11 +2,17 @@
   "seed": 1337,
   "novelDomain": "csvflow",
   "train": [
+    "stockroom-01",
     "ledgerly-02",
+    "stockroom-02",
     "ledgerly-03",
+    "stockroom-03",
     "ledgerly-04",
+    "stockroom-04",
     "ledgerly-05",
+    "stockroom-05",
     "ledgerly-06",
+    "stockroom-06",
     "ledgerly-07"
   ],
   "gate": [],
@@ -16,11 +22,17 @@
   "profiles": {
     "full": {
       "train": [
+        "stockroom-01",
         "ledgerly-02",
+        "stockroom-02",
         "ledgerly-03",
+        "stockroom-03",
         "ledgerly-04",
+        "stockroom-04",
         "ledgerly-05",
+        "stockroom-05",
         "ledgerly-06",
+        "stockroom-06",
         "ledgerly-07"
       ],
       "gate": [],

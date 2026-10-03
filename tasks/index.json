@@ -309,5 +309,250 @@
       }
     ],
     "note": ""
+  },
+  "stockroom-01": {
+    "domain": "stockroom",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "pack-rounding",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/reorder.py",
+      "function": "round_to_pack",
+      "line": 22,
+      "span": [
+        20,
+        22
+      ]
+    },
+    "failingTests": [
+      "tests/test_reorder.py::test_order_at_exact_point",
+      "tests/test_reorder.py::test_round_to_pack",
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival",
+      "tests/test_report.py::test_reservations_count_against_position"
+    ],
+    "passingTests": 28,
+    "evidence": {
+      "one-root-many": "4 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/reorder.py",
+        "search": "    return (qty + pack) // pack * pack\n",
+        "replace": "    return (qty + pack - 1) // pack * pack\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "stockroom-02": {
+    "domain": "stockroom",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "missing-return",
+    "mutationKey": "catalog-return",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/catalog.py",
+      "function": "Catalog.get",
+      "line": 37,
+      "span": [
+        35,
+        39
+      ]
+    },
+    "failingTests": [
+      "tests/test_reorder.py::test_reorder_triggers_at_exact_point",
+      "tests/test_reorder.py::test_order_at_exact_point",
+      "tests/test_reorder.py::test_order_rounds_up_to_whole_packs",
+      "tests/test_reorder.py::test_no_order_above_reorder_point",
+      "tests/test_reorder.py::test_arrival_and_position",
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival",
+      "tests/test_report.py::test_incoming_stock_suppresses_orders",
+      "tests/test_report.py::test_reservations_count_against_position"
+    ],
+    "passingTests": 24,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/stockroom/reorder.py:13, src/stockroom/reorder.py:17, src/stockroom/reorder.py:34; defect in Catalog.get"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/catalog.py",
+        "search": "            self._products[sku]\n",
+        "replace": "            return self._products[sku]\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "stockroom-03": {
+    "domain": "stockroom",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "off-by-one-index",
+    "mutationKey": "fifo-layer",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/valuation.py",
+      "function": "FifoLedger.consume",
+      "line": 45,
+      "span": [
+        37,
+        52
+      ]
+    },
+    "failingTests": [
+      "tests/test_report.py::test_stock_value_report",
+      "tests/test_valuation.py::test_consume_uses_oldest_cost_first",
+      "tests/test_valuation.py::test_consecutive_consumes_walk_the_layers"
+    ],
+    "passingTests": 29,
+    "evidence": {
+      "one-root-many": "3 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/valuation.py",
+        "search": "            layer = layers[-1]\n",
+        "replace": "            layer = layers[0]\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "stockroom-04": {
+    "domain": "stockroom",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "reorder-boundary",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/reorder.py",
+      "function": "needs_reorder",
+      "line": 17,
+      "span": [
+        16,
+        17
+      ]
+    },
+    "failingTests": [
+      "tests/test_reorder.py::test_reorder_triggers_at_exact_point",
+      "tests/test_reorder.py::test_order_at_exact_point",
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival"
+    ],
+    "passingTests": 29,
+    "evidence": {
+      "regression-trap": "tempting fix clears 2 failure(s) but breaks ['tests/test_reorder.py::test_no_order_above_reorder_point', 'tests/test_report.py::test_incoming_stock_suppresses_orders']"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/reorder.py",
+        "search": "    return pos < product.reorder_point\n",
+        "replace": "    return pos <= product.reorder_point\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/stockroom/reorder.py",
+        "search": "    if not needs_reorder(product, pos):\n        return 0\n",
+        "replace": ""
+      }
+    ],
+    "note": ""
+  },
+  "stockroom-05": {
+    "domain": "stockroom",
+    "bugShape": "deep-call-chain",
+    "shapes": [
+      "deep-call-chain"
+    ],
+    "mutation": "inverted-condition",
+    "mutationKey": "onhand-filter",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/inventory.py",
+      "function": "Inventory.on_hand",
+      "line": 29,
+      "span": [
+        26,
+        30
+      ]
+    },
+    "failingTests": [
+      "tests/test_reorder.py::test_arrival_and_position",
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival",
+      "tests/test_report.py::test_incoming_stock_suppresses_orders",
+      "tests/test_report.py::test_reservations_count_against_position",
+      "tests/test_reservations.py::test_reserve_reduces_available",
+      "tests/test_reservations.py::test_cannot_reserve_more_than_available",
+      "tests/test_reservations.py::test_reservation_expires_at_ttl",
+      "tests/test_reservations.py::test_reservation_held_before_ttl",
+      "tests/test_reservations.py::test_commit_ships_across_locations",
+      "tests/test_reservations.py::test_commit_after_expiry_fails_and_keeps_stock"
+    ],
+    "passingTests": 22,
+    "evidence": {
+      "deep-call-chain": "failures only in tests/test_reorder.py, tests/test_report.py, tests/test_reservations.py; bug in src/stockroom/inventory.py"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/inventory.py",
+        "search": "            return sum(q for (s, _), q in self._on_hand.items() if s != sku)\n",
+        "replace": "            return sum(q for (s, _), q in self._on_hand.items() if s == sku)\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "stockroom-06": {
+    "domain": "stockroom",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "transfer-swap",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/inventory.py",
+      "function": "Inventory.transfer",
+      "line": 49,
+      "span": [
+        48,
+        50
+      ]
+    },
+    "failingTests": [
+      "tests/test_inventory.py::test_transfer_between_locations"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/stockroom/inventory.py:44; defect in Inventory.transfer"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/inventory.py",
+        "search": "        self.ship(sku, qty, dest)\n        self.receive(sku, qty, source)\n",
+        "replace": "        self.ship(sku, qty, source)\n        self.receive(sku, qty, dest)\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
   }
 }

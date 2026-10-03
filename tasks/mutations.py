@@ -88,3 +88,34 @@ MUTATIONS: list[Mutation] = [
        "        return RATES[code]\n",
        "        RATES[code]\n"),
 ]
+
+S = "src/stockroom/"
+
+MUTATIONS += [
+    # ---------------- stockroom ----------------
+    _m("onhand-filter", "stockroom", "Inventory.on_hand", "inverted-condition", "deep-call-chain",
+       S + "inventory.py",
+       "            return sum(q for (s, _), q in self._on_hand.items() if s == sku)\n",
+       "            return sum(q for (s, _), q in self._on_hand.items() if s != sku)\n"),
+    _m("reorder-boundary", "stockroom", "needs_reorder", "wrong-comparison", "regression-trap",
+       S + "reorder.py",
+       "    return pos <= product.reorder_point\n",
+       "    return pos < product.reorder_point\n",
+       trap=[Edit(S + "reorder.py", "    if not needs_reorder(product, pos):\n        return 0\n", "")]),
+    _m("fifo-layer", "stockroom", "FifoLedger.consume", "off-by-one-index", "one-root-many",
+       S + "valuation.py",
+       "            layer = layers[0]\n",
+       "            layer = layers[-1]\n"),
+    _m("catalog-return", "stockroom", "Catalog.get", "missing-return", "misleading-surface",
+       S + "catalog.py",
+       "            return self._products[sku]\n",
+       "            self._products[sku]\n"),
+    _m("transfer-swap", "stockroom", "Inventory.transfer", "swapped-args", "misleading-surface",
+       S + "inventory.py",
+       "        self.ship(sku, qty, source)\n        self.receive(sku, qty, dest)\n",
+       "        self.ship(sku, qty, dest)\n        self.receive(sku, qty, source)\n"),
+    _m("pack-rounding", "stockroom", "round_to_pack", "off-by-one", "one-root-many",
+       S + "reorder.py",
+       "    return (qty + pack - 1) // pack * pack\n",
+       "    return (qty + pack) // pack * pack\n"),
+]
