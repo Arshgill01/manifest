@@ -1,0 +1,9 @@
+{
+  "skill": "ask-student",
+  "read": ["**"],
+  "write": ["src/**"],
+  "commands": ["python -m pytest", "ls", "cat", "head", "tail", "grep", "wc"],
+  "network": false,
+  "findings": [],
+  "verdict": "ok"
+}
