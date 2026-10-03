@@ -48,6 +48,7 @@ TOOL_SCHEMAS: list[dict] = [
 
 RESULT_CAP = 6000          # chars of one tool result shown to the student
 HISTORY_BUDGET = 36_000    # chars of conversation (~10k tokens) before old tool results are elided
+ELIDED = "[old tool output elided to save context]"
 
 
 def _cap(text: str, cap: int = RESULT_CAP) -> str:
@@ -102,8 +103,8 @@ def fit(messages: list[dict], budget: int = HISTORY_BUDGET) -> list[dict]:
         if total <= budget:
             break
         if m.get("role") == "tool" and len(m.get("content", "")) > 200:
-            total -= len(m["content"]) - 40
-            m["content"] = "[old tool output elided to save context]"
+            total -= len(m["content"]) - len(ELIDED)
+            m["content"] = ELIDED
     return out
 
 

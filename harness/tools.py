@@ -36,6 +36,7 @@ DENIED_COMMANDS = {
     "pip", "pip3", "uv", "brew", "npm", "npx", "sudo", "su", "open", "osascript", "security",
 }
 SHELL_META = re.compile(r"[;&|<>`\n]|\$\(")
+EMPTY_SELECTORS = {"-", "*", "all", "ALL", "None", "null"}  # small models' ways of saying "everything"
 SKIP_DIRS = {"__pycache__", ".pytest_cache", ".git", ".venv", "node_modules"}
 
 
@@ -216,7 +217,8 @@ class Tools:
         args = {"selector": selector}
 
         def go() -> dict:
-            extra = self._selector_args(selector) if selector else []
+            sel = selector.strip() if isinstance(selector, str) else None
+            extra = self._selector_args(sel) if sel and sel not in EMPTY_SELECTORS else []
             if self.manifest is not None:
                 self._check_command(" ".join([PYTEST_CMD, *extra]), f"run_tests {selector or ''}".strip())
             code, out = self._sub([sys.executable, "-m", "pytest", *PYTEST_ARGS, *extra])

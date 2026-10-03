@@ -157,11 +157,30 @@ class Student:
             raise BudgetExceeded(f"student call budget ({self.max_calls}) exhausted")
         self.calls += 1
         t0 = time.monotonic()
-        resp = self.client.chat(model=self.model, messages=messages, think=False, options=dict(OPTIONS),
-                                keep_alive=KEEP_ALIVE, **kw)
+        try:
+            resp = self.client.chat(model=self.model, messages=messages, think=False, options=dict(OPTIONS),
+                                    keep_alive=KEEP_ALIVE, **kw)
+        except BaseException as e:  # timed out / interrupted: still a model call, and stop the server generating
+            self._drop_connection()
+            if self.log:
+                self.log.emit("model.call", model=self.model, role=self.role, purpose=purpose, promptTokens=0,
+                              outTokens=0, ms=int((time.monotonic() - t0) * 1000), error=type(e).__name__)
+            raise
         ms = int((time.monotonic() - t0) * 1000)
         if self.log:
             self.log.emit("model.call", model=self.model, role=self.role, purpose=purpose,
                           promptTokens=_get(resp, "prompt_eval_count") or 0, outTokens=_get(resp, "eval_count") or 0,
                           ms=ms, doneReason=_get(resp, "done_reason"))
         return resp
+
+    def _drop_connection(self) -> None:
+        """Close the HTTP connection so Ollama cancels an abandoned generation instead of finishing it."""
+        http = getattr(self.client, "_client", None)
+        if http is not None and hasattr(http, "close"):
+            try:
+                http.close()
+                import ollama
+                if isinstance(self.client, ollama.Client):
+                    self.client = ollama.Client(host=str(http.base_url), timeout=HTTP_TIMEOUT)
+            except Exception:
+                pass
