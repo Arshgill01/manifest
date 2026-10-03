@@ -46,6 +46,8 @@ export function useRunSource() {
   const [serverless, setServerless] = useState(false);
   const [selected, setSelected] = useState<RunEntry | null>(null);
   const [load, setLoad] = useState<LoadState>("idle");
+  /** id of the run whose first load finished (guards against acting on the previous run's "ready") */
+  const [loadedId, setLoadedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const parser = useRef(new JsonlParser());
@@ -110,6 +112,7 @@ export function useRunSource() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     reset();
     setLoad("loading");
+    setLoadedId(null);
     setError(null);
     setVersion((v) => v + 1);
 
@@ -119,6 +122,7 @@ export function useRunSource() {
           if (!alive) return;
           ingest(m.default, true);
           setLoad("ready");
+          setLoadedId(selected.id);
         })
         .catch((e) => alive && (setLoad("error"), setError(String(e))));
       return () => {
@@ -139,6 +143,7 @@ export function useRunSource() {
           ingest(text, mode === "replay");
         }
         setLoad("ready");
+        setLoadedId(selected.id);
       } catch (e) {
         if (!alive) return;
         setLoad("error");
@@ -163,12 +168,13 @@ export function useRunSource() {
     reset();
     ingest(text, true);
     setLoad("ready");
+    setLoadedId(entry.id);
     setError(null);
   }, []);
 
   const events: ManifestEvent[] = parser.current.events;
   return {
-    mode, setMode, runs, runsDir, serverless, selected, setSelected, load, error, version, events,
+    mode, setMode, runs, runsDir, serverless, selected, setSelected, load, loadedId, error, version, events,
     index: index.current, skipped: parser.current.skipped, openFile, hasRealRuns: real.length > 0,
   };
 }

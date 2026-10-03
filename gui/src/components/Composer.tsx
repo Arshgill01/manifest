@@ -10,14 +10,17 @@ export interface Marker {
   i: number;
   kind: "proposal" | "accepted" | "rejected" | "block";
   label: string;
+  taskId: string | null;
+  round: number;
 }
 
 export function markersOf(events: ManifestEvent[]): Marker[] {
   const out: Marker[] = [];
   for (const e of events) {
-    if (e.type === "gate.result") out.push({ i: e.i, kind: e.accepted ? "accepted" : "rejected", label: `${e.accepted ? "Accepted" : "Rejected"} ${e.routine}` });
-    else if (e.type === "warden.block") out.push({ i: e.i, kind: "block", label: `Warden blocked ${e.skill}: ${e.attempted}` });
-    else if (e.type === "growth.proposal") out.push({ i: e.i, kind: "proposal", label: `Teacher proposed ${e.routine}` });
+    const at = { i: e.i, taskId: e.taskId, round: e.round };
+    if (e.type === "gate.result") out.push({ ...at, kind: e.accepted ? "accepted" : "rejected", label: `R${e.round} ${e.accepted ? "accepted" : "rejected"} ${e.routine}` });
+    else if (e.type === "warden.block") out.push({ ...at, kind: "block", label: `Warden blocked ${e.skill}: ${e.attempted}` });
+    else if (e.type === "growth.proposal") out.push({ ...at, kind: "proposal", label: `R${e.round} teacher proposed ${e.routine}` });
   }
   return out;
 }
@@ -38,6 +41,7 @@ interface Props {
   seek: (n: number) => void;
   goLive: () => void;
   markers: Marker[];
+  onMarker: (m: Marker) => void;
   clock: string;
   d: Derived;
 }
@@ -111,18 +115,27 @@ export function Composer(p: Props) {
         >
           <div className="scrub-track">
             {segments.map((s) => (
-              <div key={s.r} className={`scrub-seg ${s.r === currentRound ? "now" : ""} ${s.start < n ? "reached" : ""}`} style={{ left: `${s.left * 100}%`, width: `${s.width * 100}%` }} />
+              <div key={s.r} className={`scrub-seg ${s.r === currentRound ? "now" : ""}`} style={{ left: `${s.left * 100}%`, width: `max(0px, calc(${s.width * 100}% - 3px))` }} />
             ))}
             <div className="scrub-fill" style={{ width: `${pos * 100}%` }} />
             {p.markers
               .filter((m) => m.i < count)
               .map((m) => (
-                <span key={m.i} className={`scrub-mark mk-${m.kind} ${m.i < n ? "passed" : ""}`} style={{ left: `${(index.ct[m.i] / total) * 100}%` }} title={m.label} />
+                <button
+                  key={m.i}
+                  className={`scrub-mark mk-${m.kind} ${m.i < n ? "passed" : ""}`}
+                  style={{ left: `${(index.ct[m.i] / total) * 100}%` }}
+                  title={m.label}
+                  aria-label={`Jump to: ${m.label}`}
+                  tabIndex={-1}
+                  onPointerDown={(ev) => ev.stopPropagation()}
+                  onClick={() => p.onMarker(m)}
+                />
               ))}
             <span className="scrub-head" style={{ left: `${pos * 100}%` }} />
           </div>
           <div className="scrub-labels">
-            {segments.map((s) => (
+            {segments.filter((s) => s.width > 0.035).map((s) => (
               <button
                 key={s.r}
                 className={`scrub-label ${s.r === currentRound ? "now" : ""}`}

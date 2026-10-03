@@ -71,7 +71,7 @@ function Viewer() {
   const shownFor = useRef<string | null>(null);
   useEffect(() => {
     const id = src.selected?.id ?? null;
-    if (src.mode !== "replay" || src.load !== "ready" || !id || shownFor.current === id) return;
+    if (src.mode !== "replay" || src.loadedId !== id || !id || shownFor.current === id) return;
     shownFor.current = id;
     setPin(urlPin.current);
     urlPin.current = null;
@@ -80,7 +80,7 @@ function Viewer() {
     const at = Number(q.get("at"));
     pb.seek(q.has("at") && Number.isFinite(at) ? at : count);
     pb.setPlaying(q.has("play"));
-  }, [src.mode, src.load, src.selected?.id, count, pb]);
+  }, [src.mode, src.loadedId, src.selected?.id, count, pb]);
   useEffect(() => {
     if (src.mode === "live") {
       shownFor.current = null;
@@ -122,6 +122,8 @@ function Viewer() {
         setInspector((x) => !x);
       } else if (e.key === "Escape") {
         setPin(null);
+      } else if (e.key === "?") {
+        document.getElementById("keys")?.togglePopover?.();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -244,6 +246,14 @@ function Viewer() {
             pb.setFollowing(true);
           }}
           markers={markers}
+          onMarker={(m) => {
+            pb.setFollowing(false);
+            pb.setPlaying(false);
+            pb.seek(m.i + 1);
+            setPin(m.taskId ? { taskId: m.taskId, round: m.round } : null);
+            if (m.taskId) setTab("trace");
+            else setInspector(true);
+          }}
           clock={fmtClock(d.last?.ts)}
           d={d}
         />
@@ -251,7 +261,15 @@ function Viewer() {
 
       {inspector && (
         <aside className="inspector" aria-label="Growth timeline">
-          <Growth d={d} index={index} onJumpRound={seekRound} />
+          <Growth
+            d={d}
+            index={index}
+            onJumpRound={seekRound}
+            onPick={(taskId, round) => {
+              setPin({ taskId, round });
+              setTab("trace");
+            }}
+          />
         </aside>
       )}
 

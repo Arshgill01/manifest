@@ -93,10 +93,14 @@ export function Trace({ events, index, n, focus, pinned, onUnpin, version }: Pro
             )}
           </div>
           <span className="driver-n">
-            <span className="key key-code" aria-hidden="true" />
-            <b>{trace.codeDecisions}</b> code
-            <span className="key key-model" aria-hidden="true" />
-            <b>{trace.modelCalls}</b> model
+            <span className="fn-mark fn-mini" aria-hidden="true">
+              ƒ
+            </span>
+            <b>{trace.codeDecisions}</b> code routine{trace.codeDecisions === 1 ? "" : "s"}
+            <span className="model-mark model-mini" aria-hidden="true">
+              4B
+            </span>
+            <b>{trace.modelCalls}</b> student call{trace.modelCalls === 1 ? "" : "s"}
             {total > 0 && <span className="driver-pct">{Math.round(codeShare * 100)}% code</span>}
           </span>
         </div>
@@ -199,7 +203,11 @@ function RoutineBlock({ it, open, toggle }: { it: Extract<TraceItem, { kind: "ro
           ƒ
         </span>
         <span className="t-routine-name">{e ? e.routine : "routine running"}</span>
-        {e?.source && <span className={`src-chip src-${e.source}`}>{e.source}</span>}
+        {e?.source && (
+          <span className={`src-chip src-${e.source}`} title={e.source === "grown" ? "written by the teacher, kept by the gate" : "part of the tiny hand-written seed harness"}>
+            {e.source}
+          </span>
+        )}
         <span className="t-routine-kind">code</span>
         <span className="t-ms mono">{e ? fmtMs(e.ms) : "…"}</span>
       </button>
@@ -327,13 +335,22 @@ function EmptyTrace() {
       <p className="empty-lede">Each row is one thing the harness did.</p>
       <ul className="empty-legend">
         <li>
-          <span className="fn-mark">ƒ</span> <b>Code</b> routines: deterministic control, written by the teacher and earned through the gate.
+          <span className="fn-mark">ƒ</span>
+          <span>
+            <b>Code.</b> A routine doing deterministic control: written by the teacher, kept only if it passed the gate.
+          </span>
         </li>
         <li>
-          <span className="model-mark">4B</span> <b>Student</b> model calls: the only places a model makes a judgement.
+          <span className="model-mark">4B</span>
+          <span>
+            <b>Student.</b> A model call: the only places the small model makes a judgement.
+          </span>
         </li>
         <li>
-          <span className="t-block-stamp">BLOCKED</span> <b>Warden</b> stopped an action outside the routine's permission manifest.
+          <span className="t-block-stamp">BLOCKED</span>
+          <span>
+            <b>Warden.</b> An action outside the routine's permission manifest, stopped before it ran.
+          </span>
         </li>
       </ul>
       <p className="faint">Press play, or click any cell on the task board.</p>

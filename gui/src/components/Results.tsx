@@ -68,7 +68,7 @@ export function Results({ d, index }: Props) {
           tip={(r) => (held[r] ? `${held[r]!.avgModelCalls.toFixed(2)} calls per task` : "not run yet")}
         />
       </Figure>
-      <div className="fig bill" aria-label="Teacher bill">
+      <div className="fig bill" role="group" aria-label="Teacher bill">
         <div className="fig-h">
           <h3>Teacher bill</h3>
           <p className="fig-sub">all frontier calls, ever</p>

@@ -1,15 +1,16 @@
 import { useEffect, useRef } from "react";
 import type { Derived, RoundState, RunIndex } from "../lib/derive";
-import type { Finding, GateResult, WardenManifest } from "../lib/types";
+import type { Finding, GateResult, WardenBlock, WardenManifest } from "../lib/types";
 import { fmtInt, fmtUsd } from "../lib/format";
 
 interface Props {
   d: Derived;
   index: RunIndex;
   onJumpRound: (r: number) => void;
+  onPick: (taskId: string, round: number) => void;
 }
 
-export function Growth({ d, index, onJumpRound }: Props) {
+export function Growth({ d, index, onJumpRound, onPick }: Props) {
   const body = useRef<HTMLOListElement>(null);
   const rounds = Array.from({ length: index.maxRound + 1 }, (_, r) => r);
 
@@ -24,7 +25,7 @@ export function Growth({ d, index, onJumpRound }: Props) {
       <header className="panel-h">
         <h2 id="growth-h">Growth</h2>
         <p className="panel-sub">
-          teacher proposes <Arrow /> Warden grants permissions <Arrow /> gate keeps or drops
+          teacher proposes <Arrow /> Warden permits <Arrow /> gate keeps
         </p>
       </header>
       <ol className="growth-body" ref={body}>
@@ -33,14 +34,15 @@ export function Growth({ d, index, onJumpRound }: Props) {
           const inFile = index.seen.has(r);
           const reached = inFile && r <= d.round && !!rs;
           return (
-            <li key={r} data-round={r} className={`gr ${reached ? "" : "gr-ghost"} ${r === d.round ? "gr-now" : ""}`}>
+            <li key={r} data-round={r} className={`gr ${reached ? "" : "gr-ghost"} ${r === d.round ? "gr-now" : ""} ${reached && r > 0 && !rs?.proposal ? "gr-pending" : ""}`}>
               <button className="gr-h" onClick={() => onJumpRound(r)} title={`Replay from round ${r}`}>
                 <span className="gr-r">R{r}</span>
                 <span className="gr-title">
-                  {!inFile ? "not in this run" : r === 0 ? "Baseline" : rs?.proposal?.routine ?? (reached ? phaseText(rs!, index, d) : "not reached yet")}
+                  {!inFile ? "not in this run" : r === 0 ? "Baseline" : rs?.proposal?.routine ?? (reached ? "in progress" : "not reached yet")}
                 </span>
               </button>
               {reached && (r === 0 ? <Baseline rs={rs!} /> : <RoundCard rs={rs!} index={index} d={d} />)}
+              {reached && <Blocks blocks={d.blocks.filter((b) => b.round === r)} onPick={onPick} />}
             </li>
           );
         })}
@@ -60,6 +62,28 @@ function phaseText(rs: RoundState, index: RunIndex, d: Derived) {
   }
   if (rs.phase === "proposal") return "teacher is writing a routine…";
   return "…";
+}
+
+/** Warden refusals at runtime in this round: the demo's "it can't touch tests/" moment, one click from the trace. */
+function Blocks({ blocks, onPick }: { blocks: WardenBlock[]; onPick: (taskId: string, round: number) => void }) {
+  if (!blocks.length) return null;
+  return (
+    <ul className="gr-blocks">
+      {blocks.map((b) => (
+        <li key={b.i}>
+          <span className="t-block-stamp">BLOCKED</span>
+          <span className="gr-block-what">
+            <b>{b.skill}</b> tried <span className="mono">{b.attempted}</span>
+          </span>
+          {b.taskId && (
+            <button className="btn-quiet" onClick={() => onPick(b.taskId!, b.round)}>
+              view trace
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function Baseline({ rs }: { rs: RoundState }) {

@@ -80,6 +80,35 @@ export function Header(p: Props) {
             </svg>
           )}
         </button>
+        <button className="icon-btn" popoverTarget="keys" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="1.5" y="4" width="13" height="8.5" rx="1.8" fill="none" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M4 7h1M7.5 7h1M11 7h1M5 10h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        </button>
+        <div id="keys" popover="auto" className="keys-pop">
+          <p className="keys-h">Keyboard</p>
+          <dl>
+            {[
+              ["Space", "play / pause"],
+              ["← →", "previous / next round"],
+              ["1 – 5", "speed 1× · 2× · 5× · 10× · 20×"],
+              ["L", "live tail ↔ replay"],
+              ["G", "growth panel"],
+              ["Esc", "stop pinning a task, follow the run"],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <dt>
+                  <kbd>{k}</kbd>
+                </dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="keys-foot">
+            Deep links: <span className="mono">?pin=ledgerly-07:3</span> · <span className="mono">?at=1200</span> · <span className="mono">?play</span>
+          </p>
+        </div>
         <button className={`icon-btn ${p.inspector ? "on" : ""}`} onClick={p.toggleInspector} aria-pressed={p.inspector} aria-label="Toggle growth panel" title="Growth panel (G)">
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" fill="none" stroke="currentColor" strokeWidth="1.3" />

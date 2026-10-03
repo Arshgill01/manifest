@@ -1,5 +1,11 @@
 # Design brief: Manifest run viewer (confirmed 2026-10-03)
 
+> **Revised 13:05**: the owner asked for the feel of desktop agent apps (DeepSeek Harness, the ChatGPT macOS app,
+> opencode, T3 Code). The shell is now dark by default: a sidebar of runs plus the task board, a header with tabs, a
+> composer-style transport docked at the bottom, and a growth inspector on the right. The light "logbook" theme
+> below survives as the projector toggle. Role colours, the code/model typography split and the Warden stamps carry
+> over unchanged.
+
 **Summary.** A single-screen Vite + React + TS viewer over `.manifest/runs/*.jsonl`. It replays (1×–20×, scrubbable by round) or live-tails the newest run, so judges can watch a 4B model's harness grow round by round, then watch it run with Wi-Fi off.
 
 **Primary action.** Press play and watch the board go from red to green while the trace shows *code* routines doing the control.

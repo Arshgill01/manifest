@@ -26,7 +26,7 @@
   --ink: oklch(0.94 0.003 265);
   --ink-2: oklch(0.82 0.005 265);
   --muted: oklch(0.68 0.008 265);
-  --faint: oklch(0.52 0.008 265);
+  --faint: oklch(0.58 0.008 265);
   --on-fill: oklch(0.985 0 0);
 
   --accent: oklch(0.68 0.13 255);
@@ -123,7 +123,7 @@
   --font-voice: "Newsreader Variable", "New York", Georgia, serif;
 
   /* fixed rem scale, ~1.15 ratio (product UI) */
-  --t-xs: 0.71875rem;  /* 11.5 */
+  --t-xs: 0.75rem;     /* 12: the floor; nothing on screen is smaller */
   --t-sm: 0.8125rem;   /* 13 */
   --t-md: 0.875rem;    /* 14 */
   --t-base: 0.9375rem; /* 15 */
