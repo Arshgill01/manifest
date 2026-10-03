@@ -84,6 +84,15 @@
         "csvflow-01",
         "ledgerly-04"
       ]
+    },
+    "demo": {
+      "train": [],
+      "gate": [],
+      "heldout": [
+        "ledgerly-01",
+        "ledgerly-08",
+        "ratekeeper-06"
+      ]
     }
   }
 }

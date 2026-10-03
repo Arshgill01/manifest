@@ -193,3 +193,22 @@ MUTATIONS += [
        "        groups.setdefault(row[key], []).append(row)\n    return groups\n",
        "        groups.setdefault(row[key], []).append(row)\n"),
 ]
+
+# ---------------- live-demo set ----------------
+# Added after the growth run, never shown to the teacher, not part of any scored split. Same verifier.
+# All are inverted guards that raise inside the root function, with "delete the guard" as the trap:
+# fast to run live, and each one really is a regression trap.
+DEMO_MUTATIONS: list[Mutation] = [
+    _m("discount-guard", "ledgerly", "percent_off", "wrong-comparison", "regression-trap",
+       L + "discounts.py",
+       "    if not 0 <= pct <= 100:\n",
+       "    if not 0 < pct <= 100:\n",
+       trap=[Edit(L + "discounts.py",
+                  "    if not 0 < pct <= 100:\n        raise ValueError(f\"discount percent out of range: {pct}\")\n", "")]),
+    _m("take-guard", "ratekeeper", "TokenBucket.try_take", "wrong-comparison", "regression-trap",
+       R + "bucket.py",
+       "        if n > self.capacity:\n",
+       "        if n >= self.capacity:\n",
+       trap=[Edit(R + "bucket.py",
+                  "        if n >= self.capacity:\n            raise ValueError(f\"cannot take {n} tokens from a bucket of {self.capacity}\")\n", "")]),
+]

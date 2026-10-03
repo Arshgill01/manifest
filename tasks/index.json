@@ -385,6 +385,61 @@
     ],
     "note": ""
   },
+  "ledgerly-08": {
+    "domain": "ledgerly",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "discount-guard",
+    "split": "demo",
+    "demo": true,
+    "rootCause": {
+      "file": "src/ledgerly/discounts.py",
+      "function": "percent_off",
+      "line": 44,
+      "span": [
+        42,
+        46
+      ]
+    },
+    "failingTests": [
+      "tests/test_invoice.py::test_subtotal_and_due_date",
+      "tests/test_invoice.py::test_tax_breakdown_without_coupon",
+      "tests/test_invoice.py::test_grand_total_without_coupon",
+      "tests/test_invoice.py::test_percent_coupon_is_spread_before_tax",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent",
+      "tests/test_invoice.py::test_coupon_cannot_exceed_subtotal",
+      "tests/test_invoice.py::test_inclusive_tax_not_added_twice",
+      "tests/test_invoice.py::test_currency_and_summary",
+      "tests/test_line_items.py::test_inclusive_line",
+      "tests/test_line_items.py::test_half_cent_line_tax",
+      "tests/test_payments.py::test_partial_then_full_payment",
+      "tests/test_payments.py::test_status_on_and_after_due_date",
+      "tests/test_payments.py::test_overpayment_rejected",
+      "tests/test_payments.py::test_aging_buckets"
+    ],
+    "passingTests": 26,
+    "evidence": {
+      "regression-trap": "tempting fix clears 14 failure(s) but breaks ['tests/test_discounts.py::test_percent_off']"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/discounts.py",
+        "search": "    if not 0 < pct <= 100:\n",
+        "replace": "    if not 0 <= pct <= 100:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/ledgerly/discounts.py",
+        "search": "    if not 0 < pct <= 100:\n        raise ValueError(f\"discount percent out of range: {pct}\")\n",
+        "replace": ""
+      }
+    ],
+    "note": ""
+  },
   "ratekeeper-01": {
     "domain": "ratekeeper",
     "bugShape": "misleading-surface",
@@ -592,6 +647,48 @@
       }
     ],
     "trap": [],
+    "note": ""
+  },
+  "ratekeeper-06": {
+    "domain": "ratekeeper",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "take-guard",
+    "split": "demo",
+    "demo": true,
+    "rootCause": {
+      "file": "src/ratekeeper/bucket.py",
+      "function": "TokenBucket.try_take",
+      "line": 29,
+      "span": [
+        28,
+        35
+      ]
+    },
+    "failingTests": [
+      "tests/test_bucket.py::test_refill_capped_at_capacity"
+    ],
+    "passingTests": 23,
+    "evidence": {
+      "regression-trap": "tempting fix clears 1 failure(s) but breaks ['tests/test_bucket.py::test_validation']"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/bucket.py",
+        "search": "        if n >= self.capacity:\n",
+        "replace": "        if n > self.capacity:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/ratekeeper/bucket.py",
+        "search": "        if n >= self.capacity:\n            raise ValueError(f\"cannot take {n} tokens from a bucket of {self.capacity}\")\n",
+        "replace": ""
+      }
+    ],
     "note": ""
   },
   "slotbook-01": {

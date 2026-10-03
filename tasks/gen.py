@@ -21,7 +21,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .mutations import MUTATIONS, Edit, Mutation
+from .mutations import DEMO_MUTATIONS, MUTATIONS, Edit, Mutation
 
 ROOT = Path(__file__).resolve().parent
 TEMPLATES = ROOT / "templates"
@@ -322,7 +322,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"      ✓ {shape}: {ev}")
             for err in b.errors:
                 print(f"      ✗ {err}")
-    bad = [b for b in built if b.errors]
+    demo_built: list[Built] = []
+    if not args.only:
+        with tempfile.TemporaryDirectory(prefix="manifest-gen-demo-") as tmp:
+            for mut in DEMO_MUTATIONS:
+                b = build(mut, Path(tmp))
+                demo_built.append(b)
+                print(f"{'OK ' if not b.errors else 'BAD'} {mut.domain:10} {mut.key:22} {len(b.failing):2} failing  "
+                      f"{','.join(mut.shapes)}  [demo]")
+                for err in b.errors:
+                    print(f"      ✗ {err}")
+    bad = [b for b in built + demo_built if b.errors]
     if bad:
         print(f"\n{len(bad)} mutation(s) failed verification")
         return 1
@@ -330,12 +340,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     ids, splits = assign(built)
+    # demo tasks take the next free number in their domain, so every scored task keeps its id
+    per_domain = {}
+    for b in built:
+        per_domain[b.mutation.domain] = per_domain.get(b.mutation.domain, 0) + 1
+    demo_ids = []
+    for b in demo_built:
+        per_domain[b.mutation.domain] += 1
+        ids[b.mutation.key] = f"{b.mutation.domain}-{per_domain[b.mutation.domain]:02d}"
+        demo_ids.append(ids[b.mutation.key])
     split_of = {tid: s for s, tids in splits.items() for tid in tids}
+    split_of.update({tid: "demo" for tid in demo_ids})
     index: dict[str, dict] = {}
     if GENERATED.exists():
         shutil.rmtree(GENERATED)
     GENERATED.mkdir(parents=True)
-    for b in sorted(built, key=lambda b: ids[b.mutation.key]):
+    for b in sorted(built + demo_built, key=lambda b: ids[b.mutation.key]):
         tid = ids[b.mutation.key]
         dest = GENERATED / tid
         copy_template(b.mutation.domain, dest)
@@ -347,7 +367,7 @@ def main(argv: list[str] | None = None) -> int:
             "mutation": b.mutation.operator,
             "mutationKey": b.mutation.key,
             "split": split_of[tid],
-            "demo": b.mutation.pin_split == "heldout",
+            "demo": b.mutation.pin_split == "heldout" or split_of[tid] == "demo",
             "rootCause": {"file": b.mutation.file, "function": b.mutation.function, "line": b.root_line,
                           "span": list(b.span)},
             "failingTests": b.failing,
@@ -358,6 +378,9 @@ def main(argv: list[str] | None = None) -> int:
             "note": b.mutation.note,
         }
     profiles = {"full": splits, "core": core_profile(splits, index)}
+    hero = [t for t, m in index.items() if m["demo"] and m["split"] == "heldout"]
+    # live demo: none of these were ever seen by the teacher (hero = scored held-out task, rest = demo-only)
+    profiles["demo"] = {"train": [], "gate": [], "heldout": hero + demo_ids}
     (ROOT / "splits.json").write_text(json.dumps(
         {"seed": SEED, "novelDomain": NOVEL_DOMAIN, **splits, "profiles": profiles}, indent=2) + "\n")
     (ROOT / "index.json").write_text(json.dumps(index, indent=2) + "\n")

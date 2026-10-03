@@ -233,7 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--split", default="train", help="train|gate|heldout, comma-separated for several")
     ap.add_argument("--mode", default="baseline", choices=HARNESS_MODES + SELFTEST_MODES)
     ap.add_argument("--round", type=int, default=0)
-    ap.add_argument("--profile", default="core", choices=("core", "full"))
+    ap.add_argument("--profile", default="core", help="any profile in tasks/splits.json: core, full, demo")
     ap.add_argument("--tasks", help="comma-separated task ids (overrides the split's list)")
     ap.add_argument("--limit", type=int, help="only the first N tasks of each split")
     ap.add_argument("--registry", default=None)
@@ -242,6 +242,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--force", action="store_true", help="ignore the round-0 cache")
     ap.add_argument("--label", default=None)
     args = ap.parse_args(argv)
+    known = json.loads((TASKS / "splits.json").read_text())["profiles"]
+    if args.profile not in known:
+        ap.error(f"unknown profile {args.profile!r}; choose from {', '.join(known)}")
 
     label = args.label or f"eval-{args.mode}-r{args.round}"
     log = EventLog.create(label, round=args.round)
