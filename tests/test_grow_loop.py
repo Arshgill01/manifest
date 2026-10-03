@@ -91,3 +91,15 @@ def test_fake_teacher_refused_outside_scratch(tmp_path):
     with pytest.raises(RuntimeError, match="never write"):
         grow(GrowConfig(splits=dict(stubs.STUB_SPLITS), log_path=tmp_path / "x.jsonl"),
              teacher=FakeTeacher(EventLog()), run_split=stubs.run_split, warden=(stubs.warden_scan, stubs.warden_build))
+
+
+def test_teacher_outage_still_ends_run(tmp_path):
+    from harness.teacher import TeacherError
+
+    class Down(FakeTeacher):
+        def propose(self, context):
+            raise TeacherError("connection refused")
+
+    s = grow(cfg(tmp_path), teacher=Down(EventLog()))
+    assert "teacher unavailable" in s["stopReason"]
+    assert read_events(tmp_path / "run.jsonl")[-1]["type"] == "run.end"

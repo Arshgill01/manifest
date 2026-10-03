@@ -443,6 +443,9 @@ def grow(
                 stop_reason = f"{rejections} consecutive rejections"
                 break
             continue
+        except TeacherError as e:  # API down / auth: end the run cleanly so run.end still lands
+            stop_reason = f"round {r}: teacher unavailable: {e}"
+            break
         name = proposal["name"]
         say(f"  proposal: {name} — {proposal['rationale'][:100]}")
 
@@ -451,7 +454,11 @@ def grow(
                  skillPath=rel(paths.skills / name), candidatePath=rel(cand), status="proposed",
                  edit=any(e["name"] == name for e in entries))
 
-        findings = scan(cand, teacher=teacher)
+        try:
+            findings = scan(cand, teacher=teacher)
+        except TeacherError as e:
+            stop_reason = f"round {r}: teacher unavailable during Warden scan: {e}"
+            break
         manifest = build(cand, proposal["requested_permissions"], findings)
         (cand / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         (cand / "SKILL.md").write_text(render_skill_md(proposal, round=r, teacher_model=teacher.model, manifest=manifest), encoding="utf-8")
