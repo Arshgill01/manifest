@@ -192,7 +192,7 @@ def render_propose_messages(context: dict) -> list[dict]:
         "\n".join(f"- round {h['round']}: `{h['name']}` → {h['outcome']}" + (f" ({h['reason']})" if h.get("reason") else "") for h in history)
         or "(none yet)"
     )
-    traces = json.dumps(context.get("failed_traces", []), indent=1, ensure_ascii=False)
+    traces = _render_traces(context.get("failed_traces", []))
     user = f"""\
 Growth round {context.get('round', '?')}.
 
@@ -206,10 +206,8 @@ Growth round {context.get('round', '?')}.
 {history_txt}
 
 ## Failed traces from the practice (train) tasks, function-level
-Each trace is the ordered list of routine calls, student calls and tool calls for one failed task.
-```json
+Each trace is the ordered list of routine calls, student calls and tool calls (one JSON object per line) for one failed task.
 {traces}
-```
 
 ## Your job
 {PROPOSE_INSTRUCTION}
@@ -220,11 +218,27 @@ Rules:
 - applies() must become False once the routine has done its job, or it will starve every routine after it.
 - Do not repeat a rejected proposal unchanged.
 - `skill_md` is an Agent Skills SKILL.md: YAML front matter with `name` (= name) and `description` (one paragraph: what it does and when to use it), then a short markdown body.
-- `requested_permissions` is least-privilege: {{"read": ["**"], "write": ["src/**"], "commands": ["python -m pytest"], "network": false}} unless you truly need less.
+- `requested_permissions` is least-privilege. The most a routine can get is {{"read": ["**"], "write": ["src/**"], "commands": ["python -m pytest"], "network": false}}; ask for less when the routine needs less (e.g. no write for a read-only routine).
 
 Return JSON with exactly these keys:
 {{"name": str, "rationale": str, "trigger_description": str, "routine_py": str, "skill_md": str, "requested_permissions": {{"read": [str], "write": [str], "commands": [str], "network": bool}}}}"""
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]
+
+
+def _render_traces(traces: list[dict]) -> str:
+    if not traces:
+        return "(no failed traces)"
+    blocks = []
+    for t in traces:
+        o = t.get("outcome") or {}
+        head = f"### {t.get('taskId', '?')}"
+        tags = ", ".join(str(t[k]) for k in ("domain", "bugShape") if t.get(k))
+        if tags:
+            head += f" ({tags})"
+        head += " → FAILED" + "".join(f", {k} {o[k]}" for k in ("steps", "modelCalls", "routineCalls") if k in o)
+        steps = [json.dumps(s, ensure_ascii=False, default=str) for s in t.get("trace", [])]
+        blocks.append(head + "\n```\n" + "\n".join(steps) + "\n```")
+    return "\n".join(blocks)
 
 
 def render_summarize_messages(src: str) -> list[dict]:

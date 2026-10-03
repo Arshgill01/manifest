@@ -13,6 +13,8 @@ from typing import Any
 
 BASE_KEYS = {"ts", "type", "round", "taskId", "split"}
 MAX_STR = 300
+MAX_STR_LONG = 700  # failure text is what the teacher needs most
+LONG_KEYS = {"summary", "error", "output", "result", "hypothesis"}
 HEAD, TAIL = 14, 14
 
 
@@ -27,7 +29,7 @@ def _clip(v: Any, n: int = MAX_STR) -> Any:
 
 def _step(e: dict) -> dict | None:
     t = e.get("type")
-    extras = {k: _clip(v) for k, v in e.items() if k not in BASE_KEYS and k != "type"}
+    extras = {k: _clip(v, MAX_STR_LONG if k in LONG_KEYS else MAX_STR) for k, v in e.items() if k not in BASE_KEYS and k != "type"}
     if t == "routine.call":
         extras.pop("ms", None)
         return {"routine": extras.pop("routine", "?"), **extras}
@@ -44,14 +46,38 @@ def _step(e: dict) -> dict | None:
     return None
 
 
+_VOLATILE = {"repeat", "promptTokens", "outTokens", "ms"}
+
+
+def _sig(s: dict) -> str:
+    return json.dumps({k: v for k, v in s.items() if k not in _VOLATILE}, sort_keys=True, default=str)
+
+
 def _collapse(steps: list[dict]) -> list[dict]:
+    """Collapse identical consecutive steps (`repeat`), then repeated cycles of 2-4 steps (`{"loop": n, "times": k}`)."""
     out: list[dict] = []
     for s in steps:
-        if out and {k: v for k, v in out[-1].items() if k != "repeat"} == s:
+        if out and _sig(out[-1]) == _sig(s):
             out[-1]["repeat"] = out[-1].get("repeat", 1) + 1
         else:
             out.append(dict(s))
-    return out
+    sigs = [_sig(s) for s in out]
+    res: list[dict] = []
+    i = 0
+    while i < len(out):
+        for p in (2, 3, 4):
+            k = 1
+            while sigs[i + k * p: i + (k + 1) * p] == sigs[i: i + p] and i + (k + 1) * p <= len(out):
+                k += 1
+            if k >= 2:
+                res.extend(out[i: i + p])
+                res.append({"loop": f"previous {p} steps repeated", "times": k})
+                i += k * p
+                break
+        else:
+            res.append(out[i])
+            i += 1
+    return res
 
 
 def compress_task(task_id: str, events: list[dict]) -> dict:
@@ -93,7 +119,7 @@ def compress_failed_traces(
     for r in sorted(failed, key=lambda r: r["taskId"]):
         tid = r["taskId"]
         events = r.get("events") or [
-            e for e in (fallback_events or []) if e.get("taskId") == tid and e.get("split") == "train"
+            e for e in (fallback_events or []) if e.get("taskId") == tid and e.get("split") in (None, "train")
         ]
         c = compress_task(tid, events)
         if not c["outcome"]:

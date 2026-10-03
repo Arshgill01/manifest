@@ -374,6 +374,8 @@ def grow(
     teacher.log = log
     if isinstance(teacher, FakeTeacher) and not paths.dry:
         raise RuntimeError("fake teacher must never write to routines/grown/")
+    if not paths.registry.exists():
+        raise SystemExit(f"{rel(paths.registry)} missing; merge track B (seed registry) or use --dry-run")
 
     splits = cfg.splits or load_splits(cfg.stub_runner)
     train_ids = cfg.train_ids or list(splits["train"])
@@ -389,9 +391,11 @@ def grow(
              trainTasks=len(train_ids), gateTasks=len(gate_ids), heldoutTasks=len(heldout_ids))
 
     def split_run(split: str, ids: list[str], r: int, registry: Path | None, mode: str = "manifest") -> dict:
+        n0 = len(log.events)
         with log.scope(round=r, taskId=None, split=None):
             res = as_split_result(run_split(split, mode=mode, round=r, log=log,
                                             registry=str(registry) if registry else None, task_ids=ids))
+        res["_events"] = log.events[n0:]  # this run only; fallback if the runner returns outcomes without events
         say(f"  round {r} {split:<7} {mode:<8} {res['passed']}/{res['total']} pass, {res['avgModelCalls']:.1f} model calls/task")
         return res
 
@@ -420,7 +424,7 @@ def grow(
 
         train = cache.get(("train", key)) or split_run("train", train_ids, r, paths.registry)
         cache[("train", key)] = train
-        traces = compress_failed_traces(train, train_ids=train_ids, max_traces=cfg.max_traces, fallback_events=log.events)
+        traces = compress_failed_traces(train, train_ids=train_ids, max_traces=cfg.max_traces, fallback_events=train["_events"])
         if not traces:
             stop_reason = f"round {r}: every train task passes; nothing left to teach"
             break

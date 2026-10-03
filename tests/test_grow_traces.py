@@ -34,7 +34,7 @@ def test_drops_other_splits_and_tasks_and_bounds_length():
 
 def test_long_strings_clipped():
     c = compress_task("t1", [ev("tool.call", tool="run_tests", args={}, ok=False, summary="E" * 5000)])
-    assert len(c["trace"][0]["summary"]) < 400
+    assert len(c["trace"][0]["summary"]) < 800
 
 
 def test_failed_only_train_only_max_six_diverse():
@@ -48,3 +48,16 @@ def test_failed_only_train_only_max_six_diverse():
     ids = [p["taskId"] for p in picked]
     assert len(ids) == 6 and "ok-01" not in ids and "held-01" not in ids
     assert {"a-08", "a-09"} & set(ids)  # the rarer bug shape is represented
+
+
+def test_cycles_collapse_ignoring_token_counts():
+    cycle = lambda i: [
+        ev("routine.call", routine="ask-student", summary="pick", ms=1),
+        ev("model.call", role="student", purpose="ask", promptTokens=100 + i, outTokens=5, ms=1),
+        ev("tool.call", tool="read_file", args={"path": "a.py"}, ok=True, summary="read"),
+    ]
+    events = [e for i in range(5) for e in cycle(i)] + [ev("tool.call", tool="run_tests", args={}, ok=False, summary="1 failed")]
+    trace = compress_task("t1", events)["trace"]
+    assert len(trace) == 5
+    assert trace[3] == {"loop": "previous 3 steps repeated", "times": 5}
+    assert trace[4]["tool"] == "run_tests"
