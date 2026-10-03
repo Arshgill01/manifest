@@ -40,6 +40,23 @@ class State(BaseModel):
     messages: list[dict[str, Any]] = Field(default_factory=list) # ask-student conversation
     notes: dict[str, Any] = Field(default_factory=dict)          # free scratch space for routines
 
+    # Mapping-style access too (`state["suspect"]`, `state.get(...)`): grown routines are written by
+    # the teacher and either style must work, in-process and in the Warden sandbox alike.
+    def __getitem__(self, key: str) -> Any:
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(key) from None
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        setattr(self, key, value)
+
+    def __contains__(self, key: object) -> bool:
+        return isinstance(key, str) and (key in type(self).model_fields or key in (self.model_extra or {}))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self[key] if key in self else default
+
     def to_json(self) -> str:
         return self.model_dump_json()
 
