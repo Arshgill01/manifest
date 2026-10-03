@@ -69,7 +69,8 @@ class Paths:
         return cls(REGISTRY, GROWN_DIR, SKILLS_DIR, WORK_DIR / "candidates" / run_id, dry=False)
 
     @classmethod
-    def scratch(cls, run_id: str, source_registry: Path = REGISTRY, root: Path | None = None) -> "Paths":
+    def scratch(cls, run_id: str, source_registry: Path | None = None, root: Path | None = None) -> "Paths":
+        source_registry = source_registry or REGISTRY
         base = (root or WORK_DIR) / f"dry-run-{run_id}"
         p = cls(base / "routines" / "registry.json", base / "routines" / "grown", base / "skills", base / "candidates", dry=True)
         p.registry.parent.mkdir(parents=True, exist_ok=True)

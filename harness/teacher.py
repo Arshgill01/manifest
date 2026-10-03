@@ -361,6 +361,8 @@ class Teacher:
             cacheHitTokens=cache_hit,
             costUsd=round(cost, 6),
             attempt=attempt,
+            prompt=(str(messages[-1].get("content", ""))[-1200:] if messages else ""),
+            response=(resp.choices[0].message.content or "")[:4000],
         )
         return resp.choices[0].message.content or ""
 

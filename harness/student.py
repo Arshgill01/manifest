@@ -170,7 +170,8 @@ class Student:
         if self.log:
             self.log.emit("model.call", model=self.model, role=self.role, purpose=purpose,
                           promptTokens=_get(resp, "prompt_eval_count") or 0, outTokens=_get(resp, "eval_count") or 0,
-                          ms=ms, doneReason=_get(resp, "done_reason"))
+                          ms=ms, doneReason=_get(resp, "done_reason"),
+                          prompt=prompt_excerpt(messages), response=response_excerpt(resp))
         return resp
 
     def _drop_connection(self) -> None:
@@ -184,3 +185,25 @@ class Student:
                     self.client = ollama.Client(host=str(http.base_url), timeout=HTTP_TIMEOUT)
             except Exception:
                 pass
+
+
+# What the GUI shows for each call: the newest message the model saw and what it answered (trimmed).
+PROMPT_EXCERPT, RESPONSE_EXCERPT = 1200, 2000
+
+
+def prompt_excerpt(messages: list[dict]) -> str:
+    if not messages:
+        return ""
+    last = messages[-1]
+    text = str(last.get("content") or "")
+    return f"[{last.get('role', '?')}] " + (text if len(text) <= PROMPT_EXCERPT else "…" + text[-PROMPT_EXCERPT:])
+
+
+def response_excerpt(resp: Any) -> str:
+    message = _get(resp, "message") or {}
+    text = str(_get(message, "content") or "").strip()
+    for call in _get(message, "tool_calls") or []:
+        fn = _get(call, "function") or {}
+        text += f"\n→ {_get(fn, 'name')}({json.dumps(dict(_get(fn, 'arguments') or {}), ensure_ascii=False)})"
+    text = text.strip()
+    return text if len(text) <= RESPONSE_EXCERPT else text[:RESPONSE_EXCERPT] + "…"

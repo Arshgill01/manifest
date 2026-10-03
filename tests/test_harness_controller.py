@@ -37,12 +37,15 @@ def registry(tmp_path, *grown) -> str:
     return str(p)
 
 
-def test_repo_registry_is_seed_only_and_ordered():
-    entries = json.loads(DEFAULT_REGISTRY.read_text())
-    assert [e["name"] for e in entries] == ["start", "ask-student"]
-    assert all(e["source"] == "seed" for e in entries)
-    specs = load_registry()
-    assert specs[1].manifest["write"] == ["src/**"] and specs[0].manifest["write"] == []
+def test_repo_registry_is_well_formed():
+    """The live registry: seeds bracket it (start first, ask-student fallback last); everything between is grown."""
+    from harness.controller import ROOT
+    entries = json.loads((ROOT / "routines" / "registry.json").read_text())
+    names = [e["name"] for e in entries]
+    assert names[0] == "start" and names[-1] == "ask-student"
+    assert all(e["source"] == "grown" and (ROOT / e["path"] / "routine.py").exists() for e in entries[1:-1])
+    specs = load_registry()  # seed-only in tests (conftest pins it)
+    assert specs[-1].manifest["write"] == ["src/**"] and specs[0].manifest["write"] == []
 
 
 def test_missing_manifest_gets_grown_default(tmp_path):
