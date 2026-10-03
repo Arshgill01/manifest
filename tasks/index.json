@@ -1,0 +1,313 @@
+{
+  "ledgerly-01": {
+    "domain": "ledgerly",
+    "bugShape": "deep-call-chain",
+    "shapes": [
+      "deep-call-chain",
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "alloc-guard",
+    "split": "heldout",
+    "demo": true,
+    "rootCause": {
+      "file": "src/ledgerly/money.py",
+      "function": "allocate",
+      "line": 92,
+      "span": [
+        88,
+        103
+      ]
+    },
+    "failingTests": [
+      "tests/test_discounts.py::test_spread_is_proportional_and_keeps_every_cent",
+      "tests/test_invoice.py::test_percent_coupon_is_spread_before_tax",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent",
+      "tests/test_invoice.py::test_coupon_cannot_exceed_subtotal"
+    ],
+    "passingTests": 36,
+    "evidence": {
+      "deep-call-chain": "failures only in tests/test_discounts.py, tests/test_invoice.py; bug in src/ledgerly/money.py",
+      "regression-trap": "tempting fix clears 4 failure(s) but breaks ['tests/test_money.py::test_allocate_rejects_bad_input']"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/money.py",
+        "search": "    if total_weight >= 0:\n",
+        "replace": "    if total_weight <= 0:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/ledgerly/money.py",
+        "search": "    if total_weight >= 0:\n        raise ValueError(\"weights must sum to a positive number\")\n",
+        "replace": ""
+      }
+    ],
+    "note": "LIVE DEMO: invoice tests fail, traceback ends in money.allocate; deleting the guard breaks the rejection test"
+  },
+  "ledgerly-02": {
+    "domain": "ledgerly",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "wrong-rounding-mode",
+    "mutationKey": "rounding-mode",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/money.py",
+      "function": "quantize",
+      "line": 26,
+      "span": [
+        24,
+        26
+      ]
+    },
+    "failingTests": [
+      "tests/test_invoice.py::test_tax_breakdown_without_coupon",
+      "tests/test_invoice.py::test_grand_total_without_coupon",
+      "tests/test_invoice.py::test_currency_and_summary",
+      "tests/test_line_items.py::test_half_cent_line_tax",
+      "tests/test_money.py::test_amounts_round_half_up_to_cents",
+      "tests/test_payments.py::test_partial_then_full_payment",
+      "tests/test_payments.py::test_aging_buckets",
+      "tests/test_tax.py::test_half_cent_tax_rounds_up"
+    ],
+    "passingTests": 32,
+    "evidence": {
+      "one-root-many": "8 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/money.py",
+        "search": "from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal\n",
+        "replace": "from decimal import ROUND_HALF_UP, Decimal\n"
+      },
+      {
+        "file": "src/ledgerly/money.py",
+        "search": "    return to_decimal(value).quantize(CENT, rounding=ROUND_HALF_EVEN)\n",
+        "replace": "    return to_decimal(value).quantize(CENT, rounding=ROUND_HALF_UP)\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ledgerly-03": {
+    "domain": "ledgerly",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "missing-return",
+    "mutationKey": "lookup-return",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/tax.py",
+      "function": "lookup",
+      "line": 33,
+      "span": [
+        31,
+        35
+      ]
+    },
+    "failingTests": [
+      "tests/test_invoice.py::test_tax_breakdown_without_coupon",
+      "tests/test_invoice.py::test_grand_total_without_coupon",
+      "tests/test_invoice.py::test_percent_coupon_is_spread_before_tax",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent",
+      "tests/test_invoice.py::test_coupon_cannot_exceed_subtotal",
+      "tests/test_invoice.py::test_inclusive_tax_not_added_twice",
+      "tests/test_invoice.py::test_currency_and_summary",
+      "tests/test_line_items.py::test_gross_and_volume_discount",
+      "tests/test_line_items.py::test_inclusive_line",
+      "tests/test_line_items.py::test_half_cent_line_tax",
+      "tests/test_payments.py::test_partial_then_full_payment",
+      "tests/test_payments.py::test_status_on_and_after_due_date",
+      "tests/test_payments.py::test_overpayment_rejected",
+      "tests/test_payments.py::test_aging_buckets",
+      "tests/test_tax.py::test_standard_and_city_rates",
+      "tests/test_tax.py::test_half_cent_tax_rounds_up",
+      "tests/test_tax.py::test_split_inclusive_price",
+      "tests/test_tax.py::test_inclusive_tax_on_gross"
+    ],
+    "passingTests": 22,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/ledgerly/line_items.py:43, src/ledgerly/tax.py:40, src/ledgerly/tax.py:46; defect in lookup"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/tax.py",
+        "search": "        RATES[code]\n",
+        "replace": "        return RATES[code]\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ledgerly-04": {
+    "domain": "ledgerly",
+    "bugShape": "deep-call-chain",
+    "shapes": [
+      "deep-call-chain"
+    ],
+    "mutation": "inverted-condition",
+    "mutationKey": "alloc-order",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/money.py",
+      "function": "allocate",
+      "line": 100,
+      "span": [
+        88,
+        103
+      ]
+    },
+    "failingTests": [
+      "tests/test_discounts.py::test_spread_is_proportional_and_keeps_every_cent",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent"
+    ],
+    "passingTests": 38,
+    "evidence": {
+      "deep-call-chain": "failures only in tests/test_discounts.py, tests/test_invoice.py; bug in src/ledgerly/money.py"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/money.py",
+        "search": "key=lambda i: raw[i] - shares[i], reverse=False)",
+        "replace": "key=lambda i: raw[i] - shares[i], reverse=True)"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ledgerly-05": {
+    "domain": "ledgerly",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "coupon-cap",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/discounts.py",
+      "function": "coupon_discount",
+      "line": 57,
+      "span": [
+        49,
+        57
+      ]
+    },
+    "failingTests": [
+      "tests/test_discounts.py::test_coupons",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent",
+      "tests/test_invoice.py::test_coupon_cannot_exceed_subtotal"
+    ],
+    "passingTests": 37,
+    "evidence": {
+      "one-root-many": "3 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/discounts.py",
+        "search": "    return max(Money(value, subtotal.currency), subtotal)\n",
+        "replace": "    return min(Money(value, subtotal.currency), subtotal)\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ledgerly-06": {
+    "domain": "ledgerly",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "missing-return",
+    "mutationKey": "total-return",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/money.py",
+      "function": "total",
+      "line": 85,
+      "span": [
+        80,
+        84
+      ]
+    },
+    "failingTests": [
+      "tests/test_invoice.py::test_subtotal_and_due_date",
+      "tests/test_invoice.py::test_grand_total_without_coupon",
+      "tests/test_invoice.py::test_percent_coupon_is_spread_before_tax",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent",
+      "tests/test_invoice.py::test_coupon_cannot_exceed_subtotal",
+      "tests/test_invoice.py::test_inclusive_tax_not_added_twice",
+      "tests/test_invoice.py::test_currency_and_summary",
+      "tests/test_payments.py::test_partial_then_full_payment",
+      "tests/test_payments.py::test_status_on_and_after_due_date",
+      "tests/test_payments.py::test_overpayment_rejected",
+      "tests/test_payments.py::test_aging_buckets"
+    ],
+    "passingTests": 29,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/ledgerly/discounts.py:46, src/ledgerly/discounts.py:57, src/ledgerly/invoice.py:66; defect in total"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/money.py",
+        "search": "        result = result + item\n",
+        "replace": "        result = result + item\n    return result\n"
+      }
+    ],
+    "trap": [],
+    "note": ""
+  },
+  "ledgerly-07": {
+    "domain": "ledgerly",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "overdue-boundary",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/payments.py",
+      "function": "Ledger.status",
+      "line": 57,
+      "span": [
+        54,
+        59
+      ]
+    },
+    "failingTests": [
+      "tests/test_payments.py::test_status_on_and_after_due_date"
+    ],
+    "passingTests": 39,
+    "evidence": {
+      "regression-trap": "tempting fix clears 1 failure(s) but breaks ['tests/test_invoice.py::test_currency_and_summary', 'tests/test_invoice.py::test_subtotal_and_due_date']"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/payments.py",
+        "search": "        if today >= self.invoices[number].due_date():\n",
+        "replace": "        if today > self.invoices[number].due_date():\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/ledgerly/invoice.py",
+        "search": "        return self.issued + timedelta(days=self.terms_days)\n",
+        "replace": "        return self.issued + timedelta(days=self.terms_days + 1)\n"
+      }
+    ],
+    "note": ""
+  }
+}

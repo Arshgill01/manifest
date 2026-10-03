@@ -1,0 +1,43 @@
+{
+  "seed": 1337,
+  "novelDomain": "csvflow",
+  "train": [
+    "ledgerly-02",
+    "ledgerly-03",
+    "ledgerly-04",
+    "ledgerly-05",
+    "ledgerly-06",
+    "ledgerly-07"
+  ],
+  "gate": [],
+  "heldout": [
+    "ledgerly-01"
+  ],
+  "profiles": {
+    "full": {
+      "train": [
+        "ledgerly-02",
+        "ledgerly-03",
+        "ledgerly-04",
+        "ledgerly-05",
+        "ledgerly-06",
+        "ledgerly-07"
+      ],
+      "gate": [],
+      "heldout": [
+        "ledgerly-01"
+      ]
+    },
+    "core": {
+      "train": [
+        "ledgerly-02",
+        "ledgerly-03",
+        "ledgerly-04"
+      ],
+      "gate": [],
+      "heldout": [
+        "ledgerly-01"
+      ]
+    }
+  }
+}
