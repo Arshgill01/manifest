@@ -22,7 +22,10 @@ Build order (SPEC §10) and merge order: **A+B → C → D**, E anytime. Checkpo
 - [x] Failure labeller (`tasks/labels.py`: process / knowledge / format): classify round-0 failures as process vs knowledge for the checkpoint
 - [x] `tests/test_tasks_*.py`
 - [x] `core` profile (3/3/3) alongside `full` (12/6/8): `--profile core|full`
-- [ ] Round-0 checkpoint on real student (running in `manifest-wt/integ`)
+- [x] Round-0 checkpoint (real qwen3.5:4b, 5 full-train tasks, 240 s budget): **1/5 pass, 11.2 model calls/task; failures = 4 process, 0 knowledge, 0 format.**
+  Pattern: the student reads file after file (it even opens the buggy module in 4/4 failures) but never commits to an edit,
+  never follows the traceback; the one pass then re-ran the tests 5x. Evidence: `.manifest/runs/20261003-132023-checkpoint-round0-240s.jsonl`.
+  A first attempt at 120 s was invalid: the laptop was swapping (6.3 GB) and calls never returned -> labelled `budget`.
 
 ## B — harness (`harness/`, `routines/seed/`, `routines/registry.json`)
 - [ ] `student.py` Ollama client: `think=False`, temp 0, `num_ctx 16384`, 768 out tokens; `.chat` + `.ask` (pydantic-validated, re-ask once); logs `model.call` with tokens/ms
