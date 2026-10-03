@@ -230,16 +230,13 @@ def manifest_task(log: EventLog, tid: str, passes: bool, grown: list[str], c: Co
         depth = 3 if "deep" in p["bug"] else 1
         tool(log, "read_file", {"path": p["root"], "start": max(1, p["line"] - 18), "end": p["line"] + 17},
              True, "36 lines")
-        routine(log, c, "trace-to-source",
-                f"followed traceback {depth} frame{'s' if depth > 1 else ''} down → {p['root']}:{p['line']} "
-                f"{p['fn']}()", s, "grown")
-        c.steps += 1
-        s = _t
         student(log, c, "diagnose", (48, 96))
         student(log, c, "patch", (60, 140))
         tool(log, "edit_file", {"path": p["root"], "search": f"<line {p['line']}>", "replace": "<patched>"},
              True, "1 replacement")
-        routine(log, c, "ask-student", f"diagnose → {p['fn']}() · patch applied to {p['root']}", s, "seed")
+        routine(log, c, "trace-to-source",
+                f"followed traceback {depth} frame{'s' if depth > 1 else ''} down → {p['root']}:{p['line']} "
+                f"{p['fn']}() · student diagnosed + patched it", s, "grown")
         c.steps += 1
 
         if "verify-and-rollback" in grown:
