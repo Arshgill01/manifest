@@ -33,7 +33,9 @@ interface Props {
 export function NewRun({ available, profiles, busy, active, error, online, onLaunch, onOpenActive }: Props) {
   const [what, setWhat] = useState<What>("manifest");
   const [split, setSplit] = useState<SplitName>("heldout");
-  const [profile, setProfile] = useState("core");
+  // live-demo defaults: grown harness on the demo profile's held-out tasks (falls back to core)
+  const [profileChoice, setProfile] = useState<string | null>(null);
+  const profile = profileChoice ?? (profiles?.demo ? "demo" : "core");
   const [rounds, setRounds] = useState(3);
   const [text, setText] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
@@ -43,7 +45,9 @@ export function NewRun({ available, profiles, busy, active, error, online, onLau
     const p = profiles?.[profile];
     return p ? [...p.heldout, ...p.train, ...p.gate] : [];
   }, [profiles, profile]);
-  const inSplit = profiles?.[profile]?.[split] ?? [];
+  const splitsHere = SPLITS.filter((s) => (profiles?.[profile]?.[s.id]?.length ?? 1) > 0);
+  const effSplit = splitsHere.some((s) => s.id === split) ? split : (splitsHere[0]?.id ?? split);
+  const inSplit = profiles?.[profile]?.[effSplit] ?? [];
   const typed = text.split(/[\s,]+/).filter(Boolean);
   const unknown = typed.filter((t) => !pool.includes(t));
   const tasks = typed.filter((t) => pool.includes(t));
@@ -51,10 +55,10 @@ export function NewRun({ available, profiles, busy, active, error, online, onLau
 
   const req: LaunchRequest = isGrow
     ? { kind: "grow", profile, rounds, dry: what === "rehearsal" }
-    : { kind: "eval", mode: what as LaunchRequest["mode"], split, profile, tasks };
+    : { kind: "eval", mode: what as LaunchRequest["mode"], split: effSplit, profile, tasks };
   const cmd = isGrow
     ? `python -m growth.grow --rounds ${rounds} --profile ${profile}${what === "rehearsal" ? " --fake-teacher --stub-runner" : ""}`
-    : `python -m growth.eval --split ${split} --mode ${what} --profile ${profile}${tasks.length ? ` --tasks ${tasks.join(",")}` : ""}`;
+    : `python -m growth.eval --split ${effSplit} --mode ${what} --profile ${profile}${what === "manifest" ? " --round 2" : what === "baseline" ? " --round 0 --force" : ""} --max-seconds 240${tasks.length ? ` --tasks ${tasks.join(",")}` : ""}`;
 
   const needsTeacher = what === "grow";
   const needsModel = what === "manifest" || what === "baseline" || what === "grow";
@@ -99,8 +103,8 @@ export function NewRun({ available, profiles, busy, active, error, online, onLau
         {!isGrow && (
           <label className="chip-select">
             <span className="sr-only">Split</span>
-            <select value={split} onChange={(e) => setSplit(e.target.value as SplitName)}>
-              {SPLITS.map((s) => (
+            <select value={effSplit} onChange={(e) => setSplit(e.target.value as SplitName)}>
+              {splitsHere.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label} split
                 </option>
@@ -147,7 +151,7 @@ export function NewRun({ available, profiles, busy, active, error, online, onLau
           rows={2}
           value={text}
           disabled={isGrow}
-          placeholder={isGrow ? WHAT[what].hint : `Task ids, or leave empty for all ${inSplit.length || ""} ${SPLITS.find((s) => s.id === split)?.label.toLowerCase()} tasks. e.g. ${inSplit[0] ?? "ledgerly-07"}`}
+          placeholder={isGrow ? WHAT[what].hint : `Task ids, or leave empty for all ${inSplit.length || ""} ${SPLITS.find((s) => s.id === effSplit)?.label.toLowerCase()} tasks. e.g. ${inSplit[0] ?? "ledgerly-07"}`}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {

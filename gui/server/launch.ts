@@ -66,10 +66,11 @@ export function buildArgv(b: Body): string[] | string {
   if (!["baseline", "manifest", "oracle", "noop"].includes(mode)) return `unknown mode ${mode}`;
   const split = b.split ?? "";
   if (!["train", "gate", "heldout"].includes(split)) return `unknown split ${split}`;
-  const argv = ["-m", "growth.eval", "--split", split, "--mode", mode, "--profile", profile, "--label", `gui-${mode}-${split}`];
+  // 240 s per task: the student on an 8 GB laptop needs it (the runner defaults to 120)
+  const argv = ["-m", "growth.eval", "--split", split, "--mode", mode, "--profile", profile, "--max-seconds", "240", "--label", `gui-${mode}-${split}`];
   // a run started here is something you want to watch: baseline skips the round-0 cache; manifest = the grown harness
   if (mode === "baseline") argv.push("--round", "0", "--force");
-  if (mode === "manifest") argv.push("--round", "1");
+  if (mode === "manifest") argv.push("--round", "2"); // the harness as grown (matches the integrator's demo command)
   if (tasks.length) argv.push("--tasks", tasks.join(","));
   return argv;
 }
