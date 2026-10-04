@@ -41,8 +41,17 @@ export interface RunEnd extends Base {
   summary: unknown;
 }
 
+/** v2 growth (paper failure window): one per optimisation step, whatever stage decided it. */
+export interface GrowthStep extends Base {
+  type: "growth.step"; step: number; outcome: "accepted" | "rejected"; stage: string; reason: string; changes: string[]; harness: number;
+}
+/** v2: the candidate re-run on the failure window. */
+export interface GrowthRepair extends Base {
+  type: "growth.repair"; step: number; candidate: string[]; solved: string[]; unsolved: string[]; threshold: number; ok: boolean;
+}
+
 export type ManifestEvent =
   | RunStart | TaskStart | TaskEnd | RoutineCall | ModelCall | ToolCall | GrowthProposal
-  | WardenManifest | WardenBlock | GateResult | EvalHeldout | RunEnd;
+  | WardenManifest | WardenBlock | GateResult | EvalHeldout | RunEnd | GrowthStep | GrowthRepair;
 
 export type EventType = ManifestEvent["type"];

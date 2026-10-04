@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { attemptEvents, attemptKey, type Derived, type RunIndex } from "../lib/derive";
-import type { EvalHeldout, GateResult, GrowthProposal, ManifestEvent, ModelCall, RunEnd, RunStart, Split, TaskEnd, TaskStart, WardenManifest } from "../lib/types";
+import type { EvalHeldout, GateResult, GrowthProposal, ManifestEvent, ModelCall, RunEnd, RunStart, Split, TaskEnd, TaskStart, WardenManifest, GrowthStep, GrowthRepair } from "../lib/types";
 import { AttemptTrace } from "./Trace";
 import { Check, Cross } from "./TaskBoard";
 import { GateLine, Stamp, WardenCard } from "./Growth";
@@ -12,7 +12,8 @@ type Block =
   | { k: "round"; round: number; growth: boolean }
   | { k: "split"; round: number; split: Split }
   | { k: "task"; round: number; taskId: string; start: TaskStart; end?: TaskEnd; blocked: number }
-  | { k: "teacher"; round: number; calls: ModelCall[]; proposal?: GrowthProposal; manifest?: WardenManifest; gate?: GateResult }
+  | { k: "teacher"; round: number; calls: ModelCall[]; proposal?: GrowthProposal; manifest?: WardenManifest; gate?: GateResult;
+      step?: GrowthStep; repair?: GrowthRepair }
   | { k: "heldout"; ev: EvalHeldout }
   | { k: "end"; ev: RunEnd };
 
@@ -44,7 +45,7 @@ function blocksOf(events: ManifestEvent[], n: number): Block[] {
   for (let i = 0; i < Math.min(n, events.length); i++) {
     const e = events[i];
     if (e.type === "run.start") {
-      growth = e.mode === "growth";
+      growth = e.mode === "growth" || e.mode === "growth-stream";
       out.push({ k: "start", ev: e });
       continue;
     }
@@ -86,6 +87,12 @@ function blocksOf(events: ManifestEvent[], n: number): Block[] {
         break;
       case "gate.result":
         teacherFor(e.round).gate = e;
+        break;
+      case "growth.repair":
+        teacherFor(e.round).repair = e;
+        break;
+      case "growth.step":
+        teacherFor(e.round).step = e;
         break;
       case "eval.heldout":
         out.push({ k: "heldout", ev: e });
@@ -323,11 +330,21 @@ function TeacherMsg({ b, gateTotal }: { b: Extract<Block, { k: "teacher" }>; gat
         <p className="tx-teacher-lede faint">reading the failed traces…</p>
       )}
       {b.manifest && <WardenCard m={b.manifest} />}
-      {b.manifest && !b.gate && <p className="tx-trigger faint">Gate running on unseen tasks…</p>}
-      {b.gate && (
+      {b.repair && (
+        <p className="tx-trigger">
+          <span className="faint">re-run on the failure window</span>{" "}
+          <span className="mono">{b.repair.solved.length}/{b.repair.solved.length + b.repair.unsolved.length} solved</span>
+          {b.repair.solved.length > 0 && <span className="faint"> ({b.repair.solved.join(", ")})</span>}
+        </p>
+      )}
+      {b.manifest && !b.gate && !b.step && <p className="tx-trigger faint">Checking the candidate…</p>}
+      {(b.gate || b.step) && (
         <div className="tx-gate">
-          <GateLine gate={b.gate} gateTotal={gateTotal} />
-          <Stamp accepted={b.gate.accepted} />
+          {b.gate && <GateLine gate={b.gate} gateTotal={gateTotal} />}
+          {b.step && b.step.outcome === "rejected" && !b.gate && (
+            <p className="tx-trigger"><span className="faint">rejected at {b.step.stage}:</span> {b.step.reason}</p>
+          )}
+          <Stamp accepted={b.step ? b.step.outcome === "accepted" : !!b.gate?.accepted} />
         </div>
       )}
     </article>

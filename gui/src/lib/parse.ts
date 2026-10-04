@@ -3,6 +3,7 @@ import type { ManifestEvent } from "./types";
 const KNOWN = new Set([
   "run.start", "task.start", "task.end", "routine.call", "model.call", "tool.call", "growth.proposal",
   "warden.manifest", "warden.block", "gate.result", "eval.heldout", "run.end",
+  "growth.step", "growth.repair",   // v2 growth (paper failure window)
 ]);
 
 /**

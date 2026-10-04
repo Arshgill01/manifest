@@ -87,3 +87,25 @@ describe("trace grouping", () => {
     expect(t.blocks).toHaveLength(1);
   });
 });
+
+describe("v2 growth (paper failure window)", () => {
+  const ev = (o: Record<string, unknown>) => JSON.stringify({ ts: "2026-10-05T08:00:00.000Z", taskId: null, split: null, ...o });
+  const log = [
+    ev({ type: "run.start", round: 0, mode: "growth-stream", student: "s", teacher: "t", online: true }),
+    ev({ type: "growth.proposal", round: 1, routine: "a", rationale: "r", triggerDescription: "t", skillPath: "x" }),
+    ev({ type: "growth.repair", round: 1, step: 1, candidate: ["a"], solved: [], unsolved: ["x-1"], threshold: 1, ok: false }),
+    ev({ type: "growth.step", round: 1, step: 1, outcome: "rejected", stage: "repair", reason: "solved 0", changes: ["a"], harness: 0 }),
+    ev({ type: "growth.proposal", round: 2, routine: "b", rationale: "r", triggerDescription: "t", skillPath: "x" }),
+    ev({ type: "gate.result", round: 2, routine: "b", accepted: true, gateBefore: 0, gateAfter: 2, regressions: [], modelCallsBefore: 1, modelCallsAfter: 1 }),
+    ev({ type: "growth.step", round: 2, step: 2, outcome: "accepted", stage: "accepted", reason: "", changes: ["b"], harness: 1 }),
+  ].join("\n") + "\n";
+
+  it("counts outcomes from growth.step, including candidates rejected before any gate", () => {
+    const p = parseAll(log);
+    const d = derive(p.events, p.events.length);
+    expect(d.accepted).toEqual(["b"]);
+    expect(d.rejected).toEqual(["a"]);
+    expect(d.rounds[1].step?.stage).toBe("repair");
+    expect(d.rounds[1].repair?.unsolved).toEqual(["x-1"]);
+  });
+});

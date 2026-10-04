@@ -125,7 +125,18 @@ function RoundCard({ rs, index, d }: { rs: RoundState; index: RunIndex; d: Deriv
       {rs.manifest ? <WardenCard m={rs.manifest} /> : p ? <p className="gr-wait">Warden is scanning the routine…</p> : null}
 
       {rs.manifest && <Gate gate={rs.gate} rs={rs} gateTotal={gateTotal} />}
-      {rs.gate && <Stamp accepted={rs.gate.accepted} key={rs.gate.i} />}
+      {rs.repair && (
+        <p className="gr-trigger">
+          <span className="lbl">window re-run</span>{" "}
+          <span className="mono">{rs.repair.solved.length}/{rs.repair.solved.length + rs.repair.unsolved.length} solved</span>
+        </p>
+      )}
+      {rs.step && rs.step.outcome === "rejected" && !rs.gate && (
+        <p className="gr-wait">rejected at {rs.step.stage}: {rs.step.reason}</p>
+      )}
+      {(rs.step || rs.gate) && (
+        <Stamp accepted={rs.step ? rs.step.outcome === "accepted" : !!rs.gate?.accepted} key={(rs.step ?? rs.gate)!.i} />
+      )}
       {rs.heldout && (
         <p className="gr-held">
           held-out after this round <b className="mono">{rs.heldout.passed}/{rs.heldout.total}</b> · {rs.heldout.avgModelCalls.toFixed(1)} model calls per task

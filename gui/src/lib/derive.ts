@@ -1,6 +1,6 @@
 import type {
   EvalHeldout, GateResult, GrowthProposal, ManifestEvent, ModelCall, RunEnd, RunStart, Split, TaskEnd,
-  TaskStart, WardenBlock, WardenManifest,
+  TaskStart, WardenBlock, WardenManifest, GrowthStep, GrowthRepair,
 } from "./types";
 
 export const SPLITS: Split[] = ["train", "gate", "heldout"];
@@ -92,6 +92,9 @@ export interface RoundState {
   proposal?: GrowthProposal;
   manifest?: WardenManifest;
   gate?: GateResult;
+  /** v2: the step's final outcome (also for candidates rejected before the gate) and the window re-run */
+  step?: GrowthStep;
+  repair?: GrowthRepair;
   heldout?: EvalHeldout;
   teacher: ModelCall[];
   gateRun: { done: number; passed: number; running: boolean };
@@ -190,7 +193,15 @@ export function derive(events: ManifestEvent[], n: number): Derived {
       case "gate.result":
         rs.gate = e;
         rs.gateRun.running = false;
-        (e.accepted ? d.accepted : d.rejected).push(e.routine);
+        // v2 runs count outcomes from growth.step (a candidate can be rejected before any gate)
+        if (d.run?.mode !== "growth-stream") (e.accepted ? d.accepted : d.rejected).push(e.routine);
+        break;
+      case "growth.repair":
+        rs.repair = e;
+        break;
+      case "growth.step":
+        rs.step = e;
+        (e.outcome === "accepted" ? d.accepted : d.rejected).push((e.changes ?? []).join(", ") || "(no change)");
         break;
       case "eval.heldout":
         rs.heldout = e;
