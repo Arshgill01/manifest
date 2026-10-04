@@ -201,10 +201,19 @@ def build(mut: Mutation, scratch: Path) -> Built:
                 if site.split(":")[0] == rel and span[0] <= int(site.split(":")[1]) <= span[1]
             ]
             sites = sorted(set(broken.crash_sites.values()))
-            if inside or not sites:
-                errors.append(f"misleading-surface: crash inside root function for {inside or 'no crashes'}")
+            # v2 (strict): every crash must surface in package code (a caller blows up), not in a test assertion
+            in_tests = [s for s in sites if s.startswith("tests/")] if mut.strict else []
+            if inside or not sites or in_tests:
+                errors.append(f"misleading-surface: crash inside root function for {inside or 'no crashes'}"
+                              if not in_tests else f"misleading-surface (strict): crashes in test code {in_tests[:2]}")
             else:
                 shapes[shape] = f"crashes surface at {', '.join(sites[:3])}; defect in {mut.function}"
+        elif shape == "local":
+            outside = [t for t in broken.failed if not t.startswith(root_test + "::")]
+            if outside or not broken.failed:
+                errors.append(f"local: failures outside {root_test}: {outside[:2]}")
+            else:
+                shapes[shape] = f"{len(broken.failed)} failure(s), all in {root_test}"
         elif shape == "regression-trap":
             trap_dir = scratch / f"{mut.key}--trap"
             shutil.copytree(work, trap_dir, ignore=IGNORE)
@@ -279,6 +288,44 @@ def assign(built: list[Built]) -> tuple[dict[str, str], dict[str, list[str]]]:
     return ids, splits
 
 
+V2_PATTERN = ["train", "heldout", "gate", "train", "heldout", "train", "gate", "heldout", "train",
+              "train", "heldout", "gate", "train", "heldout", "train", "gate", "heldout"]   # 7 : 4 : 6
+V2_SHAPE_ORDER = ("regression-trap", "deep-call-chain", "misleading-surface", "one-root-many", "local")
+
+
+def assign_v2(built: list[Built], per_domain: dict[str, int], ids: dict[str, str]) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Append-only: v2 tasks take the next free number in their domain (after v1 + demo tasks) and are dealt
+    into splits stratified by primary shape; the novel domain stays held-out. v1 ids/splits never move."""
+    rng = random.Random(SEED + 2)
+    by_domain: dict[str, list[Built]] = {}
+    for b in built:
+        by_domain.setdefault(b.mutation.domain, []).append(b)
+    new_ids: dict[str, str] = {}
+    for domain in sorted(by_domain):
+        items = sorted(by_domain[domain], key=lambda b: b.mutation.key)
+        rng.shuffle(items)
+        for b in items:
+            per_domain[domain] = per_domain.get(domain, 0) + 1
+            new_ids[b.mutation.key] = ids[b.mutation.key] = f"{domain}-{per_domain[domain]:02d}"
+    splits: dict[str, list[str]] = {"train": [], "gate": [], "heldout": []}
+    pool = []
+    for b in built:
+        if b.mutation.domain == NOVEL_DOMAIN:
+            splits["heldout"].append(new_ids[b.mutation.key])
+        else:
+            pool.append(b)
+    cursor = 0
+    for shape in V2_SHAPE_ORDER:
+        group = sorted((b for b in pool if b.mutation.shapes[0] == shape), key=lambda b: new_ids[b.mutation.key])
+        rng.shuffle(group)
+        for b in group:
+            splits[V2_PATTERN[cursor % len(V2_PATTERN)]].append(new_ids[b.mutation.key])
+            cursor += 1
+    for s in splits:
+        splits[s].sort(key=lambda t: (t.rsplit("-", 1)[0], int(t.rsplit("-", 1)[1])))
+    return new_ids, splits
+
+
 def core_profile(splits: dict[str, list[str]], index: dict[str, dict]) -> dict[str, list[str]]:
     """Small fast subset: 2 train domains, demo task + one novel-domain task in held-out."""
     want = PROFILES["core"]
@@ -332,7 +379,18 @@ def main(argv: list[str] | None = None) -> int:
                       f"{','.join(mut.shapes)}  [demo]")
                 for err in b.errors:
                     print(f"      ✗ {err}")
-    bad = [b for b in built + demo_built if b.errors]
+    v2_built: list[Built] = []
+    if not args.only:
+        from tasks.mutations_v2 import mutations_v2
+        with tempfile.TemporaryDirectory(prefix="manifest-gen-v2-") as tmp:
+            for mut in mutations_v2():
+                b = build(mut, Path(tmp))
+                v2_built.append(b)
+                print(f"{'OK ' if not b.errors else 'BAD'} {mut.domain:10} {mut.key:22} {len(b.failing):2} failing  "
+                      f"{','.join(mut.shapes)}  [v2]")
+                for err in b.errors:
+                    print(f"      ✗ {err}")
+    bad = [b for b in built + demo_built + v2_built if b.errors]
     if bad:
         print(f"\n{len(bad)} mutation(s) failed verification")
         return 1
@@ -349,13 +407,16 @@ def main(argv: list[str] | None = None) -> int:
         per_domain[b.mutation.domain] += 1
         ids[b.mutation.key] = f"{b.mutation.domain}-{per_domain[b.mutation.domain]:02d}"
         demo_ids.append(ids[b.mutation.key])
+    v2_ids, v2_splits = assign_v2(v2_built, per_domain, ids)
     split_of = {tid: s for s, tids in splits.items() for tid in tids}
     split_of.update({tid: "demo" for tid in demo_ids})
+    split_of.update({tid: s for s, tids in v2_splits.items() for tid in tids})
     index: dict[str, dict] = {}
     if GENERATED.exists():
         shutil.rmtree(GENERATED)
     GENERATED.mkdir(parents=True)
-    for b in sorted(built + demo_built, key=lambda b: ids[b.mutation.key]):
+    v1_keys = {b.mutation.key for b in built + demo_built}
+    for b in sorted(built + demo_built + v2_built, key=lambda b: ids[b.mutation.key]):
         tid = ids[b.mutation.key]
         dest = GENERATED / tid
         copy_template(b.mutation.domain, dest)
@@ -376,11 +437,15 @@ def main(argv: list[str] | None = None) -> int:
             "fix": [e.__dict__ for e in revert_edits(b.mutation.edits)],
             "trap": [e.__dict__ for e in b.mutation.trap],
             "note": b.mutation.note,
+            "suite": "v1" if b.mutation.key in v1_keys else "v2",
         }
     profiles = {"full": splits, "core": core_profile(splits, index)}
     hero = [t for t, m in index.items() if m["demo"] and m["split"] == "heldout"]
     # live demo: none of these were ever seen by the teacher (hero = scored held-out task, rest = demo-only)
     profiles["demo"] = {"train": [], "gate": [], "heldout": hero + demo_ids}
+    # suite v2 (append-only): v1 `full` + the new verified tasks; `v2new` = only the new ones (incremental runs)
+    profiles["v2"] = {s: splits[s] + v2_splits[s] for s in ("train", "gate", "heldout")}
+    profiles["v2new"] = v2_splits
     (ROOT / "splits.json").write_text(json.dumps(
         {"seed": SEED, "novelDomain": NOVEL_DOMAIN, **splits, "profiles": profiles}, indent=2) + "\n")
     (ROOT / "index.json").write_text(json.dumps(index, indent=2) + "\n")

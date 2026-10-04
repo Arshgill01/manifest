@@ -34,6 +34,7 @@ class Mutation:
     trap: tuple[Edit, ...] = ()
     pin_split: str | None = None   # force a split (used for the live-demo task)
     note: str = ""
+    strict: bool = False           # suite v2: strict misleading-surface (crash in package code, not a test assertion)
 
     @property
     def file(self) -> str:

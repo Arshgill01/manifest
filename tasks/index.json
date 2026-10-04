@@ -35,7 +35,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "csvflow-02": {
     "domain": "csvflow",
@@ -72,7 +73,251 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
+  },
+  "csvflow-03": {
+    "domain": "csvflow",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "inverted-condition",
+    "mutationKey": "missing-cols",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/csvflow/validate.py",
+      "function": "validate",
+      "line": 23,
+      "span": [
+        21,
+        39
+      ]
+    },
+    "failingTests": [
+      "tests/test_pipeline.py::test_full_pipeline",
+      "tests/test_pipeline.py::test_where_and_derived",
+      "tests/test_pipeline.py::test_renames_before_validation",
+      "tests/test_validate.py::test_good_rows_are_typed",
+      "tests/test_validate.py::test_issues_point_at_file_lines",
+      "tests/test_validate.py::test_optional_column_may_be_absent"
+    ],
+    "passingTests": 15,
+    "evidence": {
+      "one-root-many": "6 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/csvflow/validate.py",
+        "search": "        missing = [c.name for c in schema.columns if c.required and c.name in rows[0]]\n",
+        "replace": "        missing = [c.name for c in schema.columns if c.required and c.name not in rows[0]]\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "csvflow-04": {
+    "domain": "csvflow",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "off-by-one-index",
+    "mutationKey": "median-even",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/csvflow/aggregate.py",
+      "function": "median",
+      "line": 22,
+      "span": [
+        15,
+        22
+      ]
+    },
+    "failingTests": [
+      "tests/test_aggregate.py::test_median",
+      "tests/test_aggregate.py::test_summarize_sorted_by_key",
+      "tests/test_pipeline.py::test_full_pipeline"
+    ],
+    "passingTests": 18,
+    "evidence": {
+      "one-root-many": "3 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/csvflow/aggregate.py",
+        "search": "    return (ordered[mid] + ordered[mid + 1]) / 2\n",
+        "replace": "    return (ordered[mid - 1] + ordered[mid]) / 2\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "csvflow-05": {
+    "domain": "csvflow",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "wrong-quantifier",
+    "mutationKey": "blank-any",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/csvflow/reader.py",
+      "function": "read_rows",
+      "line": 30,
+      "span": [
+        19,
+        37
+      ]
+    },
+    "failingTests": [
+      "tests/test_pipeline.py::test_full_pipeline",
+      "tests/test_reader.py::test_values_stay_raw_strings",
+      "tests/test_validate.py::test_issues_point_at_file_lines"
+    ],
+    "passingTests": 18,
+    "evidence": {
+      "one-root-many": "3 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/csvflow/reader.py",
+        "search": "        if not fields or any(not f.strip() for f in fields):\n",
+        "replace": "        if not fields or all(not f.strip() for f in fields):\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "csvflow-06": {
+    "domain": "csvflow",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "missing-call",
+    "mutationKey": "header-lower",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/csvflow/reader.py",
+      "function": "normalize_header",
+      "line": 16,
+      "span": [
+        15,
+        16
+      ]
+    },
+    "failingTests": [
+      "tests/test_pipeline.py::test_full_pipeline",
+      "tests/test_pipeline.py::test_where_and_derived",
+      "tests/test_pipeline.py::test_renames_before_validation",
+      "tests/test_reader.py::test_headers_are_normalised",
+      "tests/test_reader.py::test_values_stay_raw_strings",
+      "tests/test_reader.py::test_bad_rows_and_headers",
+      "tests/test_validate.py::test_good_rows_are_typed",
+      "tests/test_validate.py::test_issues_point_at_file_lines"
+    ],
+    "passingTests": 13,
+    "evidence": {
+      "one-root-many": "8 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/csvflow/reader.py",
+        "search": "    return \"_\".join(name.strip().split())\n",
+        "replace": "    return \"_\".join(name.strip().lower().split())\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "csvflow-07": {
+    "domain": "csvflow",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "missing-value",
+    "mutationKey": "bool-false",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/csvflow/schema.py",
+      "function": "coerce",
+      "line": 10,
+      "span": [
+        34,
+        57
+      ]
+    },
+    "failingTests": [
+      "tests/test_schema.py::test_booleans"
+    ],
+    "passingTests": 20,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_schema.py"
+    },
+    "fix": [
+      {
+        "file": "src/csvflow/schema.py",
+        "search": "FALSE = {\"false\", \"no\", \"n\"}\n",
+        "replace": "FALSE = {\"false\", \"no\", \"n\", \"0\"}\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "csvflow-08": {
+    "domain": "csvflow",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "inverted-condition",
+    "mutationKey": "required-invert",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/csvflow/schema.py",
+      "function": "coerce",
+      "line": 37,
+      "span": [
+        34,
+        57
+      ]
+    },
+    "failingTests": [
+      "tests/test_pipeline.py::test_full_pipeline",
+      "tests/test_pipeline.py::test_where_and_derived",
+      "tests/test_schema.py::test_required_and_defaults",
+      "tests/test_validate.py::test_good_rows_are_typed",
+      "tests/test_validate.py::test_issues_point_at_file_lines",
+      "tests/test_validate.py::test_optional_column_may_be_absent"
+    ],
+    "passingTests": 15,
+    "evidence": {
+      "one-root-many": "6 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/csvflow/schema.py",
+        "search": "        if not column.required:\n            raise BadValue",
+        "replace": "        if column.required:\n            raise BadValue"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
   },
   "ledgerly-01": {
     "domain": "ledgerly",
@@ -119,7 +364,8 @@
         "replace": ""
       }
     ],
-    "note": "LIVE DEMO: invoice tests fail, traceback ends in money.allocate; deleting the guard breaks the rejection test"
+    "note": "LIVE DEMO: invoice tests fail, traceback ends in money.allocate; deleting the guard breaks the rejection test",
+    "suite": "v1"
   },
   "ledgerly-02": {
     "domain": "ledgerly",
@@ -172,7 +418,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ledgerly-03": {
     "domain": "ledgerly",
@@ -220,7 +467,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ledgerly-04": {
     "domain": "ledgerly",
@@ -258,7 +506,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ledgerly-05": {
     "domain": "ledgerly",
@@ -295,7 +544,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ledgerly-06": {
     "domain": "ledgerly",
@@ -341,7 +591,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ledgerly-07": {
     "domain": "ledgerly",
@@ -383,7 +634,8 @@
         "replace": "        return self.issued + timedelta(days=self.terms_days + 1)\n"
       }
     ],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ledgerly-08": {
     "domain": "ledgerly",
@@ -438,7 +690,247 @@
         "replace": ""
       }
     ],
-    "note": ""
+    "note": "",
+    "suite": "v1"
+  },
+  "ledgerly-09": {
+    "domain": "ledgerly",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap",
+      "local"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "overpay-guard",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/payments.py",
+      "function": "Ledger.pay",
+      "line": 49,
+      "span": [
+        44,
+        52
+      ]
+    },
+    "failingTests": [
+      "tests/test_payments.py::test_partial_then_full_payment"
+    ],
+    "passingTests": 39,
+    "evidence": {
+      "regression-trap": "tempting fix clears 1 failure(s) but breaks ['tests/test_payments.py::test_overpayment_rejected']",
+      "local": "1 failure(s), all in tests/test_payments.py"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/payments.py",
+        "search": "        if self.balance(number) <= payment.amount:\n",
+        "replace": "        if self.balance(number) < payment.amount:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/ledgerly/payments.py",
+        "search": "        if self.balance(number) <= payment.amount:\n            raise OverpaymentError(f\"{number}: payment {payment.amount} exceeds balance\")\n",
+        "replace": ""
+      }
+    ],
+    "note": "",
+    "suite": "v2"
+  },
+  "ledgerly-10": {
+    "domain": "ledgerly",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "wrong-operator",
+    "mutationKey": "inclusive-split",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/tax.py",
+      "function": "split_inclusive",
+      "line": 40,
+      "span": [
+        38,
+        41
+      ]
+    },
+    "failingTests": [
+      "tests/test_invoice.py::test_inclusive_tax_not_added_twice",
+      "tests/test_line_items.py::test_inclusive_line",
+      "tests/test_tax.py::test_split_inclusive_price",
+      "tests/test_tax.py::test_inclusive_tax_on_gross"
+    ],
+    "passingTests": 36,
+    "evidence": {
+      "one-root-many": "4 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/tax.py",
+        "search": "    net = Money(gross.amount * (1 - rate.rate), gross.currency)\n",
+        "replace": "    net = Money(gross.amount / (1 + rate.rate), gross.currency)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ledgerly-11": {
+    "domain": "ledgerly",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "aging-boundary",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/payments.py",
+      "function": "Ledger.aging",
+      "line": 73,
+      "span": [
+        64,
+        76
+      ]
+    },
+    "failingTests": [
+      "tests/test_payments.py::test_aging_buckets"
+    ],
+    "passingTests": 39,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_payments.py"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/payments.py",
+        "search": "                if limit is None or late < limit:\n",
+        "replace": "                if limit is None or late <= limit:\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ledgerly-12": {
+    "domain": "ledgerly",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "days-late-swap",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/payments.py",
+      "function": "Ledger.days_late",
+      "line": 62,
+      "span": [
+        61,
+        62
+      ]
+    },
+    "failingTests": [
+      "tests/test_payments.py::test_status_on_and_after_due_date",
+      "tests/test_payments.py::test_aging_buckets"
+    ],
+    "passingTests": 38,
+    "evidence": {
+      "local": "2 failure(s), all in tests/test_payments.py"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/payments.py",
+        "search": "        return max(0, (self.invoices[number].due_date() - today).days)\n",
+        "replace": "        return max(0, (today - self.invoices[number].due_date()).days)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ledgerly-13": {
+    "domain": "ledgerly",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "inverted-condition",
+    "mutationKey": "exclusive-filter",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/invoice.py",
+      "function": "Invoice.exclusive_tax_total",
+      "line": 61,
+      "span": [
+        59,
+        63
+      ]
+    },
+    "failingTests": [
+      "tests/test_invoice.py::test_grand_total_without_coupon",
+      "tests/test_invoice.py::test_percent_coupon_is_spread_before_tax",
+      "tests/test_invoice.py::test_flat_coupon_spread_keeps_every_cent",
+      "tests/test_invoice.py::test_currency_and_summary",
+      "tests/test_payments.py::test_partial_then_full_payment",
+      "tests/test_payments.py::test_aging_buckets"
+    ],
+    "passingTests": 34,
+    "evidence": {
+      "one-root-many": "6 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/invoice.py",
+        "search": "            (t for code, t in self.tax_breakdown().items() if lookup(code).inclusive),\n",
+        "replace": "            (t for code, t in self.tax_breakdown().items() if not lookup(code).inclusive),\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ledgerly-14": {
+    "domain": "ledgerly",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "missing-inverse",
+    "mutationKey": "rate-inverse",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ledgerly/currency.py",
+      "function": "rate",
+      "line": 27,
+      "span": [
+        21,
+        28
+      ]
+    },
+    "failingTests": [
+      "tests/test_currency.py::test_inverse_rate"
+    ],
+    "passingTests": 39,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_currency.py"
+    },
+    "fix": [
+      {
+        "file": "src/ledgerly/currency.py",
+        "search": "        return RATES[(target, source)]\n",
+        "replace": "        return 1 / RATES[(target, source)]\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
   },
   "ratekeeper-01": {
     "domain": "ratekeeper",
@@ -483,7 +975,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ratekeeper-02": {
     "domain": "ratekeeper",
@@ -524,7 +1017,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ratekeeper-03": {
     "domain": "ratekeeper",
@@ -564,7 +1058,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ratekeeper-04": {
     "domain": "ratekeeper",
@@ -607,7 +1102,8 @@
         "replace": "        if len(self.log) <= self.limit:\n"
       }
     ],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ratekeeper-05": {
     "domain": "ratekeeper",
@@ -647,7 +1143,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "ratekeeper-06": {
     "domain": "ratekeeper",
@@ -689,7 +1186,374 @@
         "replace": ""
       }
     ],
-    "note": ""
+    "note": "",
+    "suite": "v1"
+  },
+  "ratekeeper-07": {
+    "domain": "ratekeeper",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "elapsed-swap",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/bucket.py",
+      "function": "TokenBucket._refill",
+      "line": 20,
+      "span": [
+        18,
+        22
+      ]
+    },
+    "failingTests": [
+      "tests/test_bucket.py::test_refills_continuously",
+      "tests/test_bucket.py::test_refill_capped_at_capacity",
+      "tests/test_limiter.py::test_allowed_again_after_retry_after",
+      "tests/test_limiter.py::test_daily_quota_blocks_until_midnight"
+    ],
+    "passingTests": 20,
+    "evidence": {
+      "one-root-many": "4 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/bucket.py",
+        "search": "        elapsed = max(0, self.updated - now)\n",
+        "replace": "        elapsed = max(0, now - self.updated)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ratekeeper-08": {
+    "domain": "ratekeeper",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap",
+      "deep-call-chain"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "advance-guard",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/clock.py",
+      "function": "FakeClock.advance",
+      "line": 23,
+      "span": [
+        21,
+        26
+      ]
+    },
+    "failingTests": [
+      "tests/test_window.py::test_sliding_window_evicts_oldest_only"
+    ],
+    "passingTests": 23,
+    "evidence": {
+      "regression-trap": "tempting fix clears 1 failure(s) but breaks ['tests/test_clock.py::test_fake_clock_moves_forward_only']",
+      "deep-call-chain": "failures only in tests/test_window.py; bug in src/ratekeeper/clock.py"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/clock.py",
+        "search": "        if seconds <= 0:\n",
+        "replace": "        if seconds < 0:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/ratekeeper/clock.py",
+        "search": "        if seconds <= 0:\n            raise ValueError(\"time only moves forward\")\n",
+        "replace": ""
+      }
+    ],
+    "note": "",
+    "suite": "v2"
+  },
+  "ratekeeper-09": {
+    "domain": "ratekeeper",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "refill-cap",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/bucket.py",
+      "function": "TokenBucket._refill",
+      "line": 21,
+      "span": [
+        18,
+        22
+      ]
+    },
+    "failingTests": [
+      "tests/test_bucket.py::test_take_until_empty",
+      "tests/test_bucket.py::test_refills_continuously",
+      "tests/test_bucket.py::test_refill_capped_at_capacity",
+      "tests/test_headers.py::test_retry_after_whole_seconds",
+      "tests/test_headers.py::test_retry_after_rounds_fractions_up",
+      "tests/test_limiter.py::test_burst_then_rate_limited",
+      "tests/test_limiter.py::test_weighted_requests"
+    ],
+    "passingTests": 17,
+    "evidence": {
+      "one-root-many": "7 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/bucket.py",
+        "search": "        self.tokens = max(Fraction(self.capacity), self.tokens + elapsed * self.rate)\n",
+        "replace": "        self.tokens = min(Fraction(self.capacity), self.tokens + elapsed * self.rate)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ratekeeper-10": {
+    "domain": "ratekeeper",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "quota-check",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/limiter.py",
+      "function": "RateLimiter.check",
+      "line": 36,
+      "span": [
+        32,
+        41
+      ]
+    },
+    "failingTests": [
+      "tests/test_limiter.py::test_daily_quota_blocks_until_midnight"
+    ],
+    "passingTests": 23,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_limiter.py"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/limiter.py",
+        "search": "        if quota.remaining() <= cost:\n",
+        "replace": "        if quota.remaining() < cost:\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ratekeeper-11": {
+    "domain": "ratekeeper",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "quota-guard",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/quota.py",
+      "function": "DailyQuota.consume",
+      "line": 55,
+      "span": [
+        54,
+        58
+      ]
+    },
+    "failingTests": [
+      "tests/test_limiter.py::test_daily_quota_blocks_until_midnight",
+      "tests/test_quota.py::test_quota_resets_at_utc_midnight"
+    ],
+    "passingTests": 22,
+    "evidence": {
+      "regression-trap": "tempting fix clears 2 failure(s) but breaks ['tests/test_quota.py::test_exceeding_quota_is_refused']"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/quota.py",
+        "search": "        if n >= self.remaining():\n",
+        "replace": "        if n > self.remaining():\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/ratekeeper/quota.py",
+        "search": "        if n >= self.remaining():\n            raise QuotaExceeded(f\"daily quota of {self.limit} exhausted\")\n",
+        "replace": ""
+      }
+    ],
+    "note": "",
+    "suite": "v2"
+  },
+  "ratekeeper-12": {
+    "domain": "ratekeeper",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "take-boundary",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/bucket.py",
+      "function": "TokenBucket.try_take",
+      "line": 32,
+      "span": [
+        28,
+        35
+      ]
+    },
+    "failingTests": [
+      "tests/test_bucket.py::test_take_until_empty",
+      "tests/test_bucket.py::test_refills_continuously",
+      "tests/test_headers.py::test_retry_after_whole_seconds",
+      "tests/test_limiter.py::test_burst_then_rate_limited",
+      "tests/test_limiter.py::test_allowed_again_after_retry_after",
+      "tests/test_limiter.py::test_weighted_requests",
+      "tests/test_limiter.py::test_daily_quota_blocks_until_midnight"
+    ],
+    "passingTests": 17,
+    "evidence": {
+      "one-root-many": "7 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/bucket.py",
+        "search": "        if self.tokens > n:\n",
+        "replace": "        if self.tokens >= n:\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ratekeeper-13": {
+    "domain": "ratekeeper",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "fixed-allow",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/window.py",
+      "function": "FixedWindowCounter.allow",
+      "line": 54,
+      "span": [
+        51,
+        57
+      ]
+    },
+    "failingTests": [
+      "tests/test_window.py::test_fixed_window_resets_on_boundary"
+    ],
+    "passingTests": 23,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_window.py"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/window.py",
+        "search": "        if count <= self.limit:\n            self.counts[start] = count + 1\n",
+        "replace": "        if count < self.limit:\n            self.counts[start] = count + 1\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ratekeeper-14": {
+    "domain": "ratekeeper",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "rate-fraction",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/limiter.py",
+      "function": "RateLimiter._state",
+      "line": 28,
+      "span": [
+        26,
+        30
+      ]
+    },
+    "failingTests": [
+      "tests/test_headers.py::test_retry_after_whole_seconds",
+      "tests/test_headers.py::test_retry_after_rounds_fractions_up",
+      "tests/test_limiter.py::test_burst_then_rate_limited",
+      "tests/test_limiter.py::test_weighted_requests"
+    ],
+    "passingTests": 20,
+    "evidence": {
+      "one-root-many": "4 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/limiter.py",
+        "search": "            self._buckets[key] = TokenBucket(plan.burst, Fraction(60, plan.per_minute), self.clock)\n",
+        "replace": "            self._buckets[key] = TokenBucket(plan.burst, Fraction(plan.per_minute, 60), self.clock)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "ratekeeper-15": {
+    "domain": "ratekeeper",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "wrong-field",
+    "mutationKey": "limit-header",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/ratekeeper/headers.py",
+      "function": "rate_limit_headers",
+      "line": 14,
+      "span": [
+        11,
+        19
+      ]
+    },
+    "failingTests": [
+      "tests/test_headers.py::test_allowed_headers"
+    ],
+    "passingTests": 23,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_headers.py"
+    },
+    "fix": [
+      {
+        "file": "src/ratekeeper/headers.py",
+        "search": "        \"X-RateLimit-Limit\": str(plan.burst),\n",
+        "replace": "        \"X-RateLimit-Limit\": str(plan.per_minute),\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
   },
   "slotbook-01": {
     "domain": "slotbook",
@@ -727,7 +1591,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "slotbook-02": {
     "domain": "slotbook",
@@ -765,7 +1630,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "slotbook-03": {
     "domain": "slotbook",
@@ -814,7 +1680,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "slotbook-04": {
     "domain": "slotbook",
@@ -853,7 +1720,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "slotbook-05": {
     "domain": "slotbook",
@@ -898,7 +1766,8 @@
         "replace": ""
       }
     ],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "slotbook-06": {
     "domain": "slotbook",
@@ -939,7 +1808,354 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
+  },
+  "slotbook-07": {
+    "domain": "slotbook",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "wrong-call",
+    "mutationKey": "to-zone-replace",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/zones.py",
+      "function": "to_zone",
+      "line": 28,
+      "span": [
+        27,
+        28
+      ]
+    },
+    "failingTests": [
+      "tests/test_zones.py::test_ist_is_five_thirty_ahead",
+      "tests/test_zones.py::test_western_zones"
+    ],
+    "passingTests": 30,
+    "evidence": {
+      "local": "2 failure(s), all in tests/test_zones.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/zones.py",
+        "search": "    return moment.replace(tzinfo=zone(name))\n",
+        "replace": "    return moment.astimezone(zone(name))\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "slotbook-08": {
+    "domain": "slotbook",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "fits-capacity",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/resources.py",
+      "function": "Directory.rooms_with_capacity",
+      "line": 49,
+      "span": [
+        47,
+        50
+      ]
+    },
+    "failingTests": [
+      "tests/test_resources.py::test_rooms_with_capacity_smallest_first"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_resources.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/resources.py",
+        "search": "        fits = [r for r in self._rooms.values() if r.capacity > people]\n",
+        "replace": "        fits = [r for r in self._rooms.values() if r.capacity >= people]\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "slotbook-09": {
+    "domain": "slotbook",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "wrong-constant",
+    "mutationKey": "minutes-unit",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/timerange.py",
+      "function": "TimeRange.minutes",
+      "line": 30,
+      "span": [
+        29,
+        30
+      ]
+    },
+    "failingTests": [
+      "tests/test_availability.py::test_empty_day_is_all_free",
+      "tests/test_availability.py::test_free_slots_around_bookings",
+      "tests/test_availability.py::test_find_slot_is_earliest_across_zones",
+      "tests/test_availability.py::test_find_slot_skips_busy_rooms",
+      "tests/test_timerange.py::test_duration_and_contains",
+      "tests/test_zones.py::test_local_day_bounds"
+    ],
+    "passingTests": 26,
+    "evidence": {
+      "one-root-many": "6 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/timerange.py",
+        "search": "        return int(self.duration.total_seconds() % 60)\n",
+        "replace": "        return int(self.duration.total_seconds() // 60)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "slotbook-10": {
+    "domain": "slotbook",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "capacity-guard",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/bookings.py",
+      "function": "Calendar.check",
+      "line": 53,
+      "span": [
+        51,
+        62
+      ]
+    },
+    "failingTests": [
+      "tests/test_bookings.py::test_capacity",
+      "tests/test_bookings.py::test_room_in_another_zone_uses_local_hours"
+    ],
+    "passingTests": 30,
+    "evidence": {
+      "local": "2 failure(s), all in tests/test_bookings.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/bookings.py",
+        "search": "        if attendees >= room.capacity:\n",
+        "replace": "        if attendees > room.capacity:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/slotbook/bookings.py",
+        "search": "        if attendees >= room.capacity:\n            raise OverCapacity(f\"{room_name} holds {room.capacity}, asked for {attendees}\")\n",
+        "replace": ""
+      }
+    ],
+    "note": "",
+    "suite": "v2"
+  },
+  "slotbook-11": {
+    "domain": "slotbook",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "intersection-swap",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/timerange.py",
+      "function": "TimeRange.intersection",
+      "line": 39,
+      "span": [
+        38,
+        40
+      ]
+    },
+    "failingTests": [
+      "tests/test_timerange.py::test_intersection"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_timerange.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/timerange.py",
+        "search": "        start, end = min(self.start, other.start), max(self.end, other.end)\n",
+        "replace": "        start, end = max(self.start, other.start), min(self.end, other.end)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "slotbook-12": {
+    "domain": "slotbook",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "merge-touching",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/timerange.py",
+      "function": "merge",
+      "line": 50,
+      "span": [
+        46,
+        54
+      ]
+    },
+    "failingTests": [
+      "tests/test_timerange.py::test_merge_joins_touching_and_overlapping"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_timerange.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/timerange.py",
+        "search": "        if merged and r.start < merged[-1].end:\n",
+        "replace": "        if merged and r.start <= merged[-1].end:\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "slotbook-13": {
+    "domain": "slotbook",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "room-order",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/resources.py",
+      "function": "Directory.rooms_with_capacity",
+      "line": 50,
+      "span": [
+        47,
+        50
+      ]
+    },
+    "failingTests": [
+      "tests/test_resources.py::test_rooms_with_capacity_smallest_first"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_resources.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/resources.py",
+        "search": "        return sorted(fits, key=lambda r: (r.name, r.capacity))\n",
+        "replace": "        return sorted(fits, key=lambda r: (r.capacity, r.name))\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "slotbook-14": {
+    "domain": "slotbook",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "free-min",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/availability.py",
+      "function": "free_slots",
+      "line": 17,
+      "span": [
+        12,
+        17
+      ]
+    },
+    "failingTests": [
+      "tests/test_availability.py::test_free_slots_around_bookings"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_availability.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/availability.py",
+        "search": "    return [g for g in gaps(hours, busy) if g.minutes() > minutes]\n",
+        "replace": "    return [g for g in gaps(hours, busy) if g.minutes() >= minutes]\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "slotbook-15": {
+    "domain": "slotbook",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "contains-end",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/slotbook/timerange.py",
+      "function": "TimeRange.contains",
+      "line": 33,
+      "span": [
+        32,
+        33
+      ]
+    },
+    "failingTests": [
+      "tests/test_timerange.py::test_duration_and_contains"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_timerange.py"
+    },
+    "fix": [
+      {
+        "file": "src/slotbook/timerange.py",
+        "search": "        return self.start <= moment <= self.end\n",
+        "replace": "        return self.start <= moment < self.end\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
   },
   "stockroom-01": {
     "domain": "stockroom",
@@ -975,7 +2191,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "stockroom-02": {
     "domain": "stockroom",
@@ -1014,7 +2231,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "stockroom-03": {
     "domain": "stockroom",
@@ -1052,7 +2270,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "stockroom-04": {
     "domain": "stockroom",
@@ -1097,7 +2316,8 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "stockroom-05": {
     "domain": "stockroom",
@@ -1141,7 +2361,8 @@
         "replace": ""
       }
     ],
-    "note": ""
+    "note": "",
+    "suite": "v1"
   },
   "stockroom-06": {
     "domain": "stockroom",
@@ -1184,6 +2405,429 @@
       }
     ],
     "trap": [],
-    "note": ""
+    "note": "",
+    "suite": "v1"
+  },
+  "stockroom-07": {
+    "domain": "stockroom",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "missing-term",
+    "mutationKey": "shortfall-term",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/reorder.py",
+      "function": "suggested_order",
+      "line": 29,
+      "span": [
+        25,
+        30
+      ]
+    },
+    "failingTests": [
+      "tests/test_reorder.py::test_order_at_exact_point",
+      "tests/test_reorder.py::test_order_rounds_up_to_whole_packs",
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival",
+      "tests/test_report.py::test_reservations_count_against_position"
+    ],
+    "passingTests": 28,
+    "evidence": {
+      "one-root-many": "4 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/reorder.py",
+        "search": "    shortfall = product.reorder_qty - pos\n",
+        "replace": "    shortfall = product.reorder_point + product.reorder_qty - pos\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-08": {
+    "domain": "stockroom",
+    "bugShape": "one-root-many",
+    "shapes": [
+      "one-root-many"
+    ],
+    "mutation": "inverted-sign",
+    "mutationKey": "available-sign",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/reservations.py",
+      "function": "ReservationBook.available",
+      "line": 38,
+      "span": [
+        37,
+        38
+      ]
+    },
+    "failingTests": [
+      "tests/test_report.py::test_reservations_count_against_position",
+      "tests/test_reservations.py::test_reserve_reduces_available",
+      "tests/test_reservations.py::test_cannot_reserve_more_than_available",
+      "tests/test_reservations.py::test_reservation_held_before_ttl"
+    ],
+    "passingTests": 28,
+    "evidence": {
+      "one-root-many": "4 failing tests"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/reservations.py",
+        "search": "        return self.inventory.on_hand(sku) + self.reserved(sku)\n",
+        "replace": "        return self.inventory.on_hand(sku) - self.reserved(sku)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-09": {
+    "domain": "stockroom",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "expire-boundary",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/reservations.py",
+      "function": "ReservationBook.expire",
+      "line": 42,
+      "span": [
+        40,
+        45
+      ]
+    },
+    "failingTests": [
+      "tests/test_reservations.py::test_reservation_expires_at_ttl"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_reservations.py"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/reservations.py",
+        "search": "if r.expires_at < now]\n",
+        "replace": "if r.expires_at <= now]\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-10": {
+    "domain": "stockroom",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "ship-guard",
+    "split": "train",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/inventory.py",
+      "function": "Inventory.ship",
+      "line": 43,
+      "span": [
+        40,
+        46
+      ]
+    },
+    "failingTests": [
+      "tests/test_inventory.py::test_pick_draws_locations_in_order",
+      "tests/test_reservations.py::test_commit_ships_across_locations"
+    ],
+    "passingTests": 30,
+    "evidence": {
+      "regression-trap": "tempting fix clears 2 failure(s) but breaks ['tests/test_inventory.py::test_cannot_ship_more_than_on_hand']"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/inventory.py",
+        "search": "        if qty >= have:\n",
+        "replace": "        if qty > have:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/stockroom/inventory.py",
+        "search": "        if qty >= have:\n            raise InsufficientStock(f\"{sku}@{location}: need {qty}, have {have}\")\n",
+        "replace": ""
+      }
+    ],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-11": {
+    "domain": "stockroom",
+    "bugShape": "misleading-surface",
+    "shapes": [
+      "misleading-surface"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "pick-take",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/inventory.py",
+      "function": "Inventory.pick",
+      "line": 62,
+      "span": [
+        52,
+        69
+      ]
+    },
+    "failingTests": [
+      "tests/test_inventory.py::test_pick_draws_locations_in_order",
+      "tests/test_reservations.py::test_commit_ships_across_locations"
+    ],
+    "passingTests": 30,
+    "evidence": {
+      "misleading-surface": "crashes surface at src/stockroom/inventory.py:44; defect in Inventory.pick"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/inventory.py",
+        "search": "            take = max(self.on_hand(sku, loc), remaining)\n",
+        "replace": "            take = min(self.on_hand(sku, loc), remaining)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-12": {
+    "domain": "stockroom",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap"
+    ],
+    "mutation": "off-by-one",
+    "mutationKey": "pack-guard",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/catalog.py",
+      "function": "Catalog.add",
+      "line": 29,
+      "span": [
+        28,
+        33
+      ]
+    },
+    "failingTests": [
+      "tests/test_catalog.py::test_unknown_sku",
+      "tests/test_catalog.py::test_duplicate_sku_rejected",
+      "tests/test_catalog.py::test_skus_sorted",
+      "tests/test_inventory.py::test_receive_and_ship_at_location",
+      "tests/test_inventory.py::test_cannot_ship_more_than_on_hand",
+      "tests/test_inventory.py::test_quantities_are_validated",
+      "tests/test_inventory.py::test_transfer_between_locations",
+      "tests/test_inventory.py::test_pick_draws_locations_in_order",
+      "tests/test_inventory.py::test_pick_is_all_or_nothing",
+      "tests/test_reorder.py::test_reorder_triggers_at_exact_point",
+      "tests/test_reorder.py::test_order_at_exact_point",
+      "tests/test_reorder.py::test_order_rounds_up_to_whole_packs",
+      "tests/test_reorder.py::test_no_order_above_reorder_point",
+      "tests/test_reorder.py::test_arrival_and_position",
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival",
+      "tests/test_report.py::test_incoming_stock_suppresses_orders",
+      "tests/test_report.py::test_reservations_count_against_position",
+      "tests/test_report.py::test_stock_value_report",
+      "tests/test_reservations.py::test_reserve_reduces_available",
+      "tests/test_reservations.py::test_cannot_reserve_more_than_available",
+      "tests/test_reservations.py::test_reservation_expires_at_ttl",
+      "tests/test_reservations.py::test_reservation_held_before_ttl",
+      "tests/test_reservations.py::test_commit_ships_across_locations",
+      "tests/test_reservations.py::test_commit_after_expiry_fails_and_keeps_stock",
+      "tests/test_reservations.py::test_ids_and_release"
+    ],
+    "passingTests": 7,
+    "evidence": {
+      "regression-trap": "tempting fix clears 25 failure(s) but breaks ['tests/test_catalog.py::test_pack_size_must_be_positive']"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/catalog.py",
+        "search": "        if product.pack_size <= 1:\n",
+        "replace": "        if product.pack_size < 1:\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/stockroom/catalog.py",
+        "search": "        if product.pack_size <= 1:\n            raise ValueError(f\"{product.sku}: pack size must be at least 1\")\n",
+        "replace": ""
+      }
+    ],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-13": {
+    "domain": "stockroom",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "locations-zero",
+    "split": "gate",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/inventory.py",
+      "function": "Inventory.locations",
+      "line": 33,
+      "span": [
+        32,
+        33
+      ]
+    },
+    "failingTests": [
+      "tests/test_inventory.py::test_pick_draws_locations_in_order"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_inventory.py"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/inventory.py",
+        "search": "if s == sku and q >= 0)\n",
+        "replace": "if s == sku and q > 0)\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-14": {
+    "domain": "stockroom",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "average-swap",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/valuation.py",
+      "function": "FifoLedger.average_cost",
+      "line": 35,
+      "span": [
+        33,
+        35
+      ]
+    },
+    "failingTests": [
+      "tests/test_valuation.py::test_average_cost"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_valuation.py"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/valuation.py",
+        "search": "        return (qty / self.value(sku)).quantize(CENT) if qty else Decimal(\"0.00\")\n",
+        "replace": "        return (self.value(sku) / qty).quantize(CENT) if qty else Decimal(\"0.00\")\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-15": {
+    "domain": "stockroom",
+    "bugShape": "local",
+    "shapes": [
+      "local"
+    ],
+    "mutation": "swapped-args",
+    "mutationKey": "report-sort",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/report.py",
+      "function": "reorder_report",
+      "line": 34,
+      "span": [
+        23,
+        34
+      ]
+    },
+    "failingTests": [
+      "tests/test_report.py::test_reorder_report_sorted_by_arrival"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "local": "1 failure(s), all in tests/test_report.py"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/report.py",
+        "search": "    return sorted(lines, key=lambda line: (line.sku, line.arrives))\n",
+        "replace": "    return sorted(lines, key=lambda line: (line.arrives, line.sku))\n"
+      }
+    ],
+    "trap": [],
+    "note": "",
+    "suite": "v2"
+  },
+  "stockroom-16": {
+    "domain": "stockroom",
+    "bugShape": "regression-trap",
+    "shapes": [
+      "regression-trap",
+      "local"
+    ],
+    "mutation": "wrong-comparison",
+    "mutationKey": "consume-guard",
+    "split": "heldout",
+    "demo": false,
+    "rootCause": {
+      "file": "src/stockroom/valuation.py",
+      "function": "FifoLedger.consume",
+      "line": 39,
+      "span": [
+        37,
+        52
+      ]
+    },
+    "failingTests": [
+      "tests/test_valuation.py::test_consume_whole_layer"
+    ],
+    "passingTests": 31,
+    "evidence": {
+      "regression-trap": "tempting fix clears 1 failure(s) but breaks ['tests/test_valuation.py::test_cannot_consume_more_than_held']",
+      "local": "1 failure(s), all in tests/test_valuation.py"
+    },
+    "fix": [
+      {
+        "file": "src/stockroom/valuation.py",
+        "search": "        if qty >= self.quantity(sku):\n",
+        "replace": "        if qty > self.quantity(sku):\n"
+      }
+    ],
+    "trap": [
+      {
+        "file": "src/stockroom/valuation.py",
+        "search": "        if qty >= self.quantity(sku):\n            raise InsufficientStock(f\"{sku}: cannot consume {qty}\")\n",
+        "replace": ""
+      }
+    ],
+    "note": "",
+    "suite": "v2"
   }
 }

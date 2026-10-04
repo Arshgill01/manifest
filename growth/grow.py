@@ -331,7 +331,8 @@ def load_splits(stub: bool, profile: str = "core") -> dict:
         if chosen is None:
             return data
         # every held-out id of every profile stays banned from the teacher, not just this profile's
-        return {**chosen, "novelDomain": data.get("novelDomain"), "heldoutAll": data.get("heldout", [])}
+        held_all = sorted(set(data.get("heldout", [])).union(*(p.get("heldout", []) for p in data.get("profiles", {}).values())))
+        return {**chosen, "novelDomain": data.get("novelDomain"), "heldoutAll": held_all}
     if stub:
         return dict(stubs.STUB_SPLITS)
     raise SystemExit(f"{rel(SPLITS)} missing; merge track A or pass --stub-runner")
@@ -578,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-traces", type=int, default=6)
     p.add_argument("--round0", choices=("all", "heldout", "none"), default="all", help="which splits to (cache-)run in baseline mode as round 0")
     p.add_argument("--heldout-every-round", action="store_true", help="re-run held-out even when the harness didn't change")
-    p.add_argument("--profile", choices=("core", "full"), default="core", help="task split profile from tasks/splits.json")
+    p.add_argument("--profile", choices=("core", "full", "v2"), default="core", help="task split profile from tasks/splits.json")
     p.add_argument("--max-seconds", type=int, default=240, help="per-task wall clock for every harness run")
     p.add_argument("--log", type=Path, help="event log path (default .manifest/runs/<id>-growth.jsonl)")
     a = p.parse_args(argv)
