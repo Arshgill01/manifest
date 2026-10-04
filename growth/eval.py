@@ -207,7 +207,7 @@ def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str
             continue
         outcome = run_one(tid, split=split, mode=mode, round=round, log=log, registry=registry, run_dir=run_dir,
                           max_steps=max_steps, max_seconds=max_seconds, executor=executor)
-        if cfile and not outcome.get("error"):
+        if cfile and not outcome.get("error") and not cfile.exists():  # --force re-runs never overwrite the cache
             cfile.parent.mkdir(parents=True, exist_ok=True)
             cfile.write_text(json.dumps(outcome, default=str))
         results.append(outcome)
