@@ -89,6 +89,42 @@ class Proposal(BaseModel):
         return self
 
 
+class Change(BaseModel):
+    """One routine added or edited by a v2 change set (SPEC §5.3)."""
+
+    name: str
+    trigger_description: str
+    routine_py: str
+    skill_md: str
+    requested_permissions: Permissions = Field(default_factory=Permissions)
+
+    @model_validator(mode="after")
+    def _check(self) -> "Change":
+        if not NAME_RE.match(self.name) or len(self.name) > 64:
+            raise ValueError(f"name {self.name!r} must be kebab-case [a-z0-9-], ≤64 chars")
+        if self.name in SEED_NAMES:
+            raise ValueError(f"seed routine {self.name!r} cannot be edited; propose a new routine instead")
+        for f in ("trigger_description", "skill_md"):
+            if not getattr(self, f).strip():
+                raise ValueError(f"{self.name}: {f} must not be empty")
+        check_routine_source(self.routine_py, self.name)
+        return self
+
+
+class ChangeSet(BaseModel):
+    rationale: str
+    changes: list[Change]
+    order: list[str] | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "ChangeSet":
+        if not self.rationale.strip():
+            raise ValueError("rationale must not be empty")
+        if not self.changes:
+            raise ValueError("changes must contain at least one routine")
+        return self
+
+
 def check_routine_source(src: str, name: str) -> None:
     """Raise ValueError unless `src` is a ≤150-line module with NAME == name, applies(state), run(state, tools, student)."""
     n_lines = len(src.strip().splitlines())
@@ -203,6 +239,98 @@ Return JSON with exactly these keys:
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]
 
 
+CHANGE_SYSTEM_PROMPT = """\
+You are the optimizer in Manifest, a coding-agent harness that grows itself (method: "Grow the Harness, \
+Not the Context"). A small local model, the student (Qwen3.5-4B, temperature 0), must make failing pytest \
+suites pass in small multi-module Python packages without editing tests. It is usually able to fix a bug \
+once it looks at the right few lines; it fails because of process: it wanders, re-reads files, never \
+commits to an edit, never follows the traceback, never re-runs the full suite after editing.
+
+The harness is a registry of routines (Python code). A code controller runs the first routine whose \
+applies(state) is True, again and again, until state.done or the budget (12 routine runs and 24 student \
+calls per task). Each student call is slow (30-90 s on this machine) and the student is weak at long \
+contexts and multi-step plans, but fine at one focused question with a short excerpt. Put every recurring \
+control decision (what to run, what to read, which frame matters, when to patch, when to verify, when to \
+roll back, when to stop) into deterministic code. Call the student only for semantic judgement.
+
+You improve the harness from failures. You see the current harness code and a window of failed practice \
+tasks, each as a function-level execution graph plus diagnostics. Your candidate is kept only if (1) when \
+re-run on these same window tasks it makes at least {q} of them pass, (2) its success rate on a separate \
+gate set (which you never see) does not drop, and (3) Warden's static scan finds nothing dangerous: no \
+network, no subprocess/os.system, no eval/exec/base64 tricks, no environment variables, no paths outside \
+the task directory; all file and test access goes through `tools`; tests/ is never writable.
+
+Answer with a single JSON object and nothing else."""
+
+
+def render_change_messages(context: dict) -> list[dict]:
+    """v2 optimizer prompt (SPEC §5.3): harness with scope marks, window graphs + diagnostics, history."""
+    scope = set(context.get("scope") or [])
+    reg = []
+    for i, r in enumerate(context.get("registry", []), 1):
+        if r.get("source") == "seed":
+            mark = "seed: immutable"
+        elif not context.get("restrict_scope", True) or r["name"] in scope:
+            mark = "ran in the window traces: any function may change"
+        else:
+            mark = "did NOT run in the window traces: only applies() / constants may change"
+        reg.append(f"### {i}. {r['name']}  ({mark})\n```python\n{r.get('code', '').rstrip()}\n```")
+    hist = context.get("history") or []
+    hist_txt = "\n".join(
+        f"- step {h['step']}: {', '.join(h.get('changes') or ['?'])} -> {h['outcome']}"
+        + (f" at {h['stage']}" if h.get("stage") and h["outcome"] != "accepted" else "")
+        + (f": {h['reason']}" if h.get("reason") else "")
+        for h in hist) or "(none yet)"
+    blocks = []
+    for w in context.get("window", []):
+        d = w.get("diagnostics") or {}
+        head = (f"### {w['taskId']} ({w.get('domain')}, {w.get('bugShape')}): attempt {w.get('attempts', 0) + 1} "
+                f"of {context.get('r_max', '?')}")
+        diag = "\n".join(f"  {k}: {v}" for k, v in d.items())
+        blocks.append(f"{head}\nDiagnostics:\n{diag}\nExecution graph (routine -> functions -> tool/student calls):\n"
+                      "```\n" + "\n".join(w.get("graph") or ["(empty)"]) + "\n```")
+    rules = [
+        f"Change at most {context.get('budget', 10)} functions in total (each added or modified top-level function "
+        "counts 1; other changed module-level code in an edited routine counts 1).",
+        "Never delete an existing routine or an existing top-level function (you may stop using it).",
+        "Each routine_py is a complete module: NAME = \"<name>\", def applies(state) -> bool, "
+        f"def run(state, tools, student) returning the state; at most {MAX_ROUTINE_LINES} lines; stdlib + pydantic only.",
+        "To edit a grown routine reuse its exact name and return its full new source. Seeds (start, ask-student) are immutable.",
+        "applies() must turn False once the routine has done its job or it will starve everything after it.",
+        "Routines must be generic: no task ids, package/domain names or module names from the traces, no expected "
+        "values. They must work on any Python repository with a failing pytest suite.",
+        "Optional `order`: the full list of grown routine names in the order they should be tried (seeds stay first/last).",
+        "skill_md: Agent Skills SKILL.md (YAML front matter with name and a one-paragraph description, then a short body).",
+        "requested_permissions: least privilege; the maximum is {\"read\": [\"**\"], \"write\": [\"src/**\"], "
+        "\"commands\": [\"python -m pytest\"], \"network\": false}.",
+        "Do not resubmit a rejected change unchanged; read the history.",
+    ]
+    user = f"""\
+Optimization step {context.get('step', '?')}.
+
+## Routine API
+{context.get('api', '').rstrip()}
+
+## Current harness (registry order; the first routine whose applies() is True runs)
+{chr(10).join(reg)}
+
+## History of this growth run
+{hist_txt}
+
+## Failure window: {len(context.get('window', []))} practice task(s) the current harness fails
+Repair them jointly: look for the control behaviour they share, not one-off fixes.
+{chr(10).join(blocks)}
+
+## Your job
+Propose ONE candidate change set that makes the harness solve these failures with reusable control code.
+{chr(10).join('- ' + r for r in rules)}
+
+Return JSON with exactly these keys:
+{{"rationale": str, "changes": [{{"name": str, "trigger_description": str, "routine_py": str, "skill_md": str, "requested_permissions": {{"read": [str], "write": [str], "commands": [str], "network": bool}}}}], "order": [str] or null}}"""
+    return [{"role": "system", "content": CHANGE_SYSTEM_PROMPT.format(q=context.get("q", 1))},
+            {"role": "user", "content": user}]
+
+
 def _render_traces(traces: list[dict]) -> str:
     if not traces:
         return "(no failed traces)"
@@ -291,6 +419,16 @@ class Teacher:
     def propose(self, context: dict) -> dict:
         proposal = self._json_call("propose", render_propose_messages(context), Proposal.model_validate)
         return proposal.model_dump()
+
+    def propose_changes(self, context: dict, check: Callable[[ChangeSet], None] | None = None) -> dict:
+        """v2: a multi-routine change set. `check` enforces growth constraints (edit budget, scope, ...);
+        a violation is shown to the teacher for its one retry, like a schema error."""
+        def validate(data: dict) -> ChangeSet:
+            cs = ChangeSet.model_validate(data)
+            if check is not None:
+                check(cs)
+            return cs
+        return self._json_call("propose", render_change_messages(context), validate).model_dump()
 
     def summarize_code(self, src: str) -> list[str]:
         result = self._json_call("warden-summarize", render_summarize_messages(src), _Findings.model_validate, max_tokens=8000)
@@ -396,6 +534,16 @@ class FakeTeacher:
         raw = self.proposals[self._i % len(self.proposals)]
         self._i += 1
         return Proposal.model_validate(raw).model_dump()
+
+    def propose_changes(self, context: dict, check: Callable[["ChangeSet"], None] | None = None) -> dict:
+        self._record("propose", render_change_messages(context))
+        raw = self.proposals[self._i % len(self.proposals)]
+        self._i += 1
+        change = {k: raw[k] for k in ("name", "trigger_description", "routine_py", "skill_md", "requested_permissions")}
+        cs = ChangeSet.model_validate({"rationale": raw["rationale"], "changes": [change]})
+        if check is not None:
+            check(cs)  # the fake teacher never retries: a violation surfaces to the caller
+        return cs.model_dump()
 
     def summarize_code(self, src: str) -> list[str]:
         self._record("warden-summarize", render_summarize_messages(src))

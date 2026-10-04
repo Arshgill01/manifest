@@ -151,14 +151,17 @@ A routine is one Python module `routine.py`:
     def run(state, tools, student) -> state: # deterministic control code; mutate and return the state
 
 Controller loop: pick the FIRST routine in registry order whose applies(state) is True, run it, repeat
-until state.done or the limits (12 steps, 120 s per task). Registry order: `start` first, grown routines
+until state.done or the budget (12 routine runs and 24 student calls per task). Registry order: `start` first, grown routines
 next, `ask-student` (fallback: the student picks a tool, i.e. plain tool-calling) always last.
 Routines may run out-of-process under a sandbox, so the state must stay JSON-serialisable.
 
 state (pydantic model) has at least:
   task_dir, test_output, failures: [{test, error, frames: [{file, line, function}]}],
   suspect: {file, line, function}, context_snippet, patches: [], last_full_run: {passed, failed},
-  done: bool, steps: int, model_calls: int
+  done: bool, steps: int, model_calls: int, notes: dict (free scratch space), routine_runs: {name: count}
+
+Every function you define in a routine is traced (calls, arguments, return values) and shown back to you
+in later execution graphs, so small named helpers make failures easy to localise.
 
 tools (each call is checked against the routine's Warden manifest; paths are relative to the task dir):
   tools.list_files()
@@ -167,7 +170,8 @@ tools (each call is checked against the routine's Warden manifest; paths are rel
   tools.edit_file(path, search, replace)   # exact search/replace; tests/** is never writable
   tools.bash(cmd)                          # allowed command prefixes only, e.g. "python -m pytest"
 
-student (local 4B model; ~5-20 s per call; weak at multi-step planning and long contexts, fine at one focused question):
+student (local 4B model; ~30-90 s per call on this CPU-only machine, and a fresh long prompt costs more than an
+appended one; weak at multi-step planning and long contexts, fine at one focused question):
   student.ask(purpose: str, prompt: str, schema: type[pydantic.BaseModel]) -> dict   # validated, re-asked once
   fixed formats: purpose "diagnose" -> {file, function, hypothesis}; purpose "patch" -> one search/replace block"""
 

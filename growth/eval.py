@@ -92,7 +92,7 @@ def judge(work: Path, pristine: Path, expected_total: int) -> dict[str, Any]:
                 "testsUntouched": not tampered, "tampered": tampered, "error": f"judge: {exc}"}
     ok = not tampered and failed == 0 and passed == expected_total
     return {"pass": ok, "passed": passed, "failed": failed, "expected": expected_total,
-            "testsUntouched": not tampered, "tampered": tampered}
+            "testsUntouched": not tampered, "tampered": tampered, "failedTests": result.failed[:8]}
 
 
 # ---------------------------------------------------------------- environment

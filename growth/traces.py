@@ -137,3 +137,120 @@ def compress_failed_traces(
             if groups[k] and len(picked) < max_traces:
                 picked.append(groups[k].pop(0))
     return picked
+
+
+# --------------------------------------------------------------------------- v2: execution graph + diagnostics
+#
+# Paper §3.2/§3.4: the optimizer sees each window failure as an execution graph (function invocations,
+# tool and model calls, returns, errors) plus offline diagnostics E. Here: routine -> fn.call/fn.return
+# (functions inside the routine) -> tool.call / model.call, rendered as indented text. The controller emits
+# `routine.call` *after* a routine finishes, so inner events are buffered until it arrives.
+
+GRAPH_MAX_LINES = 110
+_FULL_SELECTORS = (None, "", "-", "*", "all")
+
+
+def _tool_line(e: dict) -> str:
+    args = e.get("args") or {}
+    if e.get("tool") == "read_file":
+        rng = f":{args.get('start')}-{args.get('end')}" if args.get("start") or args.get("end") else ""
+        a = f"{args.get('path')}{rng}"
+    elif e.get("tool") == "edit_file":
+        a = f"{args.get('path')}, search={_clip(args.get('search', ''), 80)!r}, replace={_clip(args.get('replace', ''), 80)!r}"
+    elif e.get("tool") == "run_tests":
+        a = args.get("selector") or ""
+    elif e.get("tool") == "bash":
+        a = _clip(args.get("cmd", ""), 100)
+    else:
+        a = ""
+    ok = "" if e.get("ok", True) else " FAILED"
+    return f"tool {e.get('tool')}({a}){ok} -> {_clip(e.get('summary', ''), 160)}"
+
+
+def _model_line(e: dict) -> str:
+    resp = (e.get("response") or "").replace("\n", " ")
+    err = f" ERROR {e['error']}" if e.get("error") else ""
+    return (f"student {e.get('purpose')} ({e.get('promptTokens', 0)} prompt tok, {e.get('ms', 0) / 1000:.0f}s){err}"
+            + (f" -> {_clip(resp, 220)}" if resp else ""))
+
+
+def render_graph(events: list[dict], *, fn_level: bool = True, max_lines: int = GRAPH_MAX_LINES) -> list[str]:
+    lines: list[str] = []
+    buf: list[str] = []
+    for e in events:
+        t = e.get("type")
+        if t == "fn.call" and fn_level:
+            args = ", ".join(f"{k}={v}" for k, v in (e.get("args") or {}).items())
+            buf.append("  " * (e.get("depth", 0) + 1) + f"fn {e.get('fn')}({_clip(args, 200)})")
+        elif t == "fn.return" and fn_level:
+            out = f"raised {e['exc']}" if e.get("exc") else f"= {_clip(str(e.get('ret')), 200)}"
+            buf.append("  " * (e.get("depth", 0) + 1) + f"<- {e.get('fn')} {out}")
+        elif t == "tool.call":
+            depth = 2 if fn_level and any(l.lstrip().startswith("fn ") for l in buf) else 1
+            buf.append("  " * depth + _tool_line(e))
+        elif t == "model.call" and e.get("role") != "teacher":
+            depth = 2 if fn_level and any(l.lstrip().startswith("fn ") for l in buf) else 1
+            buf.append("  " * depth + _model_line(e))
+        elif t == "warden.block":
+            buf.append(f"  WARDEN BLOCK {e.get('attempted')}: {e.get('reason')}")
+        elif t == "routine.call":
+            status = "" if e.get("ok", True) else " (ERROR)"
+            lines.append(f"[{e.get('routine')}]{status} {_clip(e.get('summary', ''), 200)}")
+            lines.extend(buf)
+            buf = []
+    lines.extend(buf)  # baseline mode / a routine cut off by the budget
+    # collapse identical consecutive lines, then cap
+    out: list[str] = []
+    for l in lines:
+        if out and out[-1].split(" [x")[0] == l:
+            n = int(out[-1].rsplit("[x", 1)[1][:-1]) + 1 if " [x" in out[-1] else 2
+            out[-1] = f"{l} [x{n}]"
+        else:
+            out.append(l)
+    if len(out) > max_lines:
+        head = max_lines // 2
+        out = out[:head] + [f"... {len(out) - max_lines} lines omitted ..."] + out[-(max_lines - head):]
+    return out
+
+
+def diagnostics(events: list[dict]) -> dict:
+    """Offline diagnostics E (paper §3.4) from one task's events: no root-cause metadata, train only."""
+    tools = [e for e in events if e.get("type") == "tool.call"]
+    models = [e for e in events if e.get("type") == "model.call" and e.get("role") != "teacher"]
+    end = next((e for e in reversed(events) if e.get("type") == "task.end"), {})
+    reads = [t for t in tools if t.get("tool") == "read_file"]
+    edits = [t for t in tools if t.get("tool") == "edit_file"]
+    runs = [t for t in tools if t.get("tool") == "run_tests"]
+    last_edit = max((i for i, t in enumerate(tools) if t.get("tool") == "edit_file" and t.get("ok")), default=-1)
+    full_after = any(t.get("tool") == "run_tests" and (t.get("args") or {}).get("selector") in _FULL_SELECTORS
+                     for t in tools[last_edit + 1:]) if last_edit >= 0 else False
+    sigs: dict[str, int] = defaultdict(int)
+    for t in tools:
+        sigs[json.dumps([t.get("tool"), t.get("args")], sort_keys=True, default=str)] += 1
+    judge = end.get("judge") or {}
+    return {
+        "stopReason": end.get("stopReason"),
+        "steps": end.get("steps"), "studentCalls": end.get("modelCalls"),
+        "finalSuite": f"{judge.get('failed', '?')} failed / {judge.get('expected', '?')} tests"
+                      + (" (test files were modified: automatic fail)" if judge.get("tampered") else ""),
+        "stillFailing": judge.get("failedTests", [])[:6],
+        "reads": len(reads), "distinctFilesRead": len({(t.get("args") or {}).get("path") for t in reads}),
+        "edits": f"{sum(1 for t in edits if t.get('ok'))} applied, {sum(1 for t in edits if not t.get('ok'))} failed",
+        "testRuns": len(runs), "fullRunAfterLastEdit": full_after,
+        "repeatedIdenticalToolCalls": sum(n - 1 for n in sigs.values() if n > 1),
+        "studentFormatRetries": sum(1 for m in models if str(m.get("purpose", "")).endswith(":retry")),
+        "studentErrors": sum(1 for m in models if m.get("error")),
+        "wardenBlocks": sum(1 for e in events if e.get("type") == "warden.block"),
+    }
+
+
+def window_entry(task_id: str, events: list[dict], *, attempts: int, fn_level: bool = True) -> dict:
+    """One failure-window entry for the teacher: train events only (anything else is dropped)."""
+    own = [e for e in events if e.get("split") in (None, "train") and e.get("taskId") in (None, task_id)]
+    start = next((e for e in own if e.get("type") == "task.start"), {})
+    return {
+        "taskId": task_id, "domain": start.get("domain"), "bugShape": start.get("bugShape"),
+        "attempts": attempts, "diagnostics": diagnostics(own),
+        "graph": render_graph(own, fn_level=fn_level),
+        "routines": sorted({e["routine"] for e in own if e.get("type") == "routine.call"}),
+    }
