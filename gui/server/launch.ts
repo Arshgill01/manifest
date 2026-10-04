@@ -40,7 +40,11 @@ type Body = {
   profile?: string;
   rounds?: number;
   dry?: boolean;
+  registry?: string;
 };
+
+/** Harnesses the GUI may evaluate: the hackathon registry, the seed-only h0, and any v2 growth result. */
+const REGISTRY = /^(routines\/registry\.json|harnesses\/[A-Za-z0-9._-]+\/(registry|h\d+)\.json)$/;
 
 function knownProfiles(): string[] {
   try {
@@ -57,8 +61,9 @@ export function buildArgv(b: Body): string[] | string {
   const tasks = (b.tasks ?? []).filter((t) => ID.test(t));
   if ((b.tasks ?? []).length !== tasks.length) return "task ids look like ledgerly-07";
   if (b.kind === "grow") {
-    const rounds = Math.max(1, Math.min(4, Math.round(Number(b.rounds) || 3)));
-    const argv = ["-m", "growth.grow", "--rounds", String(rounds), "--profile", profile];
+    // v2 growth (paper failure window); `rounds` caps the optimisation steps
+    const steps = Math.max(1, Math.min(12, Math.round(Number(b.rounds) || 6)));
+    const argv = ["-m", "growth.stream", "--max-opt-steps", String(steps), "--profile", profile, "--label", "gui-stream"];
     if (b.dry) argv.push("--fake-teacher", "--stub-runner"); // no network, no Ollama: a rehearsal
     return argv;
   }
@@ -66,11 +71,15 @@ export function buildArgv(b: Body): string[] | string {
   if (!["baseline", "manifest", "oracle", "noop"].includes(mode)) return `unknown mode ${mode}`;
   const split = b.split ?? "";
   if (!["train", "gate", "heldout"].includes(split)) return `unknown split ${split}`;
-  // 240 s per task: the student on an 8 GB laptop needs it (the runner defaults to 120)
-  const argv = ["-m", "growth.eval", "--split", split, "--mode", mode, "--profile", profile, "--max-seconds", "240", "--label", `gui-${mode}-${split}`];
-  // a run started here is something you want to watch: baseline skips the round-0 cache; manifest = the grown harness
+  // v2 protocol budget (12 steps / 24 calls, 1800 s safety cap) comes from the runner's defaults
+  const argv = ["-m", "growth.eval", "--split", split, "--mode", mode, "--profile", profile, "--label", `gui-${mode}-${split}`];
+  // a run started here is something you want to watch: baseline skips the round-0 cache
   if (mode === "baseline") argv.push("--round", "0", "--force");
-  if (mode === "manifest") argv.push("--round", "2"); // the harness as grown (matches the integrator's demo command)
+  if (mode === "manifest") {
+    const reg = b.registry ?? "routines/registry.json";
+    if (!REGISTRY.test(reg)) return `registry must be routines/registry.json or harnesses/<run>/registry.json`;
+    argv.push("--round", "1", "--registry", reg);
+  }
   if (tasks.length) argv.push("--tasks", tasks.join(","));
   return argv;
 }

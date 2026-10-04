@@ -57,8 +57,8 @@ export function NewRun({ available, profiles, busy, active, error, online, onLau
     ? { kind: "grow", profile, rounds, dry: what === "rehearsal" }
     : { kind: "eval", mode: what as LaunchRequest["mode"], split: effSplit, profile, tasks };
   const cmd = isGrow
-    ? `python -m growth.grow --rounds ${rounds} --profile ${profile}${what === "rehearsal" ? " --fake-teacher --stub-runner" : ""}`
-    : `python -m growth.eval --split ${effSplit} --mode ${what} --profile ${profile}${what === "manifest" ? " --round 2" : what === "baseline" ? " --round 0 --force" : ""} --max-seconds 240${tasks.length ? ` --tasks ${tasks.join(",")}` : ""}`;
+    ? `python -m growth.stream --max-opt-steps ${rounds} --profile ${profile} --label gui-stream${what === "rehearsal" ? " --fake-teacher --stub-runner" : ""}`
+    : `python -m growth.eval --split ${effSplit} --mode ${what} --profile ${profile} --label gui-${what}-${effSplit}${what === "manifest" ? " --round 1 --registry routines/registry.json" : what === "baseline" ? " --round 0 --force" : ""}${tasks.length ? ` --tasks ${tasks.join(",")}` : ""}`;
 
   const needsTeacher = what === "grow";
   const needsModel = what === "manifest" || what === "baseline" || what === "grow";
@@ -115,11 +115,11 @@ export function NewRun({ available, profiles, busy, active, error, online, onLau
         )}
         {isGrow && (
           <label className="chip-select">
-            <span className="sr-only">Rounds</span>
+            <span className="sr-only">Optimisation steps</span>
             <select value={rounds} onChange={(e) => setRounds(Number(e.target.value))}>
-              {[1, 2, 3, 4].map((r) => (
+              {[1, 2, 3, 4, 6, 8, 12].map((r) => (
                 <option key={r} value={r}>
-                  {r} round{r === 1 ? "" : "s"}
+                  ≤{r} step{r === 1 ? "" : "s"}
                 </option>
               ))}
             </select>
@@ -174,7 +174,7 @@ export function NewRun({ available, profiles, busy, active, error, online, onLau
               </>
             )}
           </span>
-          <button className="send" type="submit" disabled={!!blockedBy || !!active} aria-label="Start run" title={blockedBy ?? `Start · ${n ?? rounds + " rounds"}`}>
+          <button className="send" type="submit" disabled={!!blockedBy || !!active} aria-label="Start run" title={blockedBy ?? `Start · ${n ?? "≤" + rounds + " steps"}`}>
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
