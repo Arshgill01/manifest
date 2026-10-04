@@ -579,7 +579,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-traces", type=int, default=6)
     p.add_argument("--round0", choices=("all", "heldout", "none"), default="all", help="which splits to (cache-)run in baseline mode as round 0")
     p.add_argument("--heldout-every-round", action="store_true", help="re-run held-out even when the harness didn't change")
-    p.add_argument("--profile", choices=("core", "full", "v2"), default="core", help="task split profile from tasks/splits.json")
+    p.add_argument("--profile", choices=("core", "full", "v2", "v2new"), default="core", help="task split profile from tasks/splits.json")
     p.add_argument("--max-seconds", type=int, default=240, help="per-task wall clock for every harness run")
     p.add_argument("--log", type=Path, help="event log path (default .manifest/runs/<id>-growth.jsonl)")
     a = p.parse_args(argv)
