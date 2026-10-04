@@ -173,8 +173,13 @@ class Tools:
         }
 
     def _sub(self, argv: list[str] | str, shell: bool = False) -> tuple[int, str]:
+        """Run a tool subprocess. It executes code the student may have written, so it runs inside Warden's
+        kernel sandbox when one is available (Linux bwrap: no network, no $HOME, tests/ read-only)."""
+        from warden.sandbox import tool_argv
+
+        argv = tool_argv(argv if not shell else str(argv), self.workdir)
         try:
-            p = subprocess.run(argv, shell=shell, cwd=self.workdir, env=self._env(), text=True,
+            p = subprocess.run(argv, cwd=self.workdir, env=self._env(), text=True,
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=self._timeout())
             return p.returncode, p.stdout
         except subprocess.TimeoutExpired as e:

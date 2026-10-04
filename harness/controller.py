@@ -74,15 +74,39 @@ def load_routine(routine_dir: Path) -> ModuleType:
     return _MODULES[key]
 
 
+def fresh_routine(routine_dir: Path) -> ModuleType:
+    """Import routine.py uncached (so per-run instrumentation never leaks into another task)."""
+    file = Path(routine_dir) / "routine.py"
+    name = "manifest_routine_run_" + "".join(c if c.isalnum() else "_" for c in Path(routine_dir).name)
+    spec = importlib.util.spec_from_file_location(name, file)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
 class InProcessExecutor:
     """Default executor: imports and calls the routine in this process (tool-layer enforcement only).
-    Warden's SandboxExecutor runs it under sandbox-exec instead."""
+    Warden's SandboxExecutor runs it in a kernel sandbox instead (warden.sandbox.make_executor)."""
+
+    def __init__(self, trace: bool = True):
+        self.trace = trace
+
+    def describe(self) -> str:
+        return "inprocess"
 
     def applies(self, routine_dir: Path, state: State, manifest: dict) -> bool:
         return bool(load_routine(routine_dir).applies(state))
 
     def run(self, routine_dir: Path, state: State, tools: Tools, student: Any, manifest: dict) -> State:
-        out = load_routine(routine_dir).run(state, tools, student)
+        log = getattr(tools, "log", None)
+        if self.trace and log is not None:
+            from harness.fntrace import instrument
+
+            mod = fresh_routine(routine_dir)
+            instrument(mod, lambda t, d: log.emit(t, **d), routine=getattr(mod, "NAME", Path(routine_dir).name))
+        else:
+            mod = load_routine(routine_dir)
+        out = mod.run(state, tools, student)
         return out if isinstance(out, State) else state
 
 

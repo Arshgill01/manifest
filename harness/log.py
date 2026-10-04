@@ -16,6 +16,8 @@ EVENT_TYPES = {
     "run.start", "task.start", "task.end", "routine.call", "model.call", "tool.call",
     "growth.proposal", "warden.manifest", "warden.block", "gate.result",
     "eval.heldout", "run.end",
+    # v2 (SPEC §7): function-level execution graph inside routines, paper-style growth bookkeeping
+    "fn.call", "fn.return", "growth.window", "growth.repair", "growth.step", "growth.checkpoint",
 }
 
 

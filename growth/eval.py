@@ -22,6 +22,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from harness.env import config_key, host_info, load_env
 from harness.log import ROOT, EventLog
 from tasks.gen import IGNORE, apply_edits, run_pytest
 from tasks.mutations import Edit
@@ -32,8 +33,14 @@ WORK = ROOT / ".manifest" / "work"
 CACHE = ROOT / ".manifest" / "cache"
 FAKEHOME = ROOT / "demo" / "fakehome"
 
+load_env()
 STUDENT = os.environ.get("STUDENT_MODEL", "qwen3.5:4b")
-TEACHER = os.environ.get("TEACHER_MODEL") or "deepseek-v4.1-flash"
+TEACHER = os.environ.get("TEACHER_MODEL") or "deepseek-flash"
+
+# v2 protocol budget (SPEC §3.3): the step/call budget is the binding limit and is identical for every
+# harness; the wall clock is only a safety cap (CPU-only hosts are ~6x slower per call than the M1 was).
+MAX_STEPS = 12
+MAX_SECONDS = 1800
 HARNESS_MODES = ("baseline", "manifest")
 SELFTEST_MODES = ("oracle", "noop")   # runner self-tests: apply the reference fix / do nothing
 
@@ -176,30 +183,34 @@ def run_one(task_id: str, *, split: str | None, mode: str, round: int, log: Even
 
 
 def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str | None = None,
-              task_ids: list[str] | None = None, profile: str = "core", max_steps: int = 12,
-              max_seconds: int = 120, executor=None, use_cache: bool = True) -> dict:
-    """Run `mode` over a split. Round-0 baseline results are cached and replayed, never recomputed."""
+              task_ids: list[str] | None = None, profile: str = "core", max_steps: int = MAX_STEPS,
+              max_seconds: int = MAX_SECONDS, executor=None, use_cache: bool = True) -> dict:
+    """Run `mode` over a split.
+
+    Round-0 baseline outcomes are cached per task under a key of everything that changes a result (student
+    model + digest + options, budget, host, BASELINE_VERSION), so a long baseline survives crashes and is
+    never recomputed; a cached task's events are replayed into this run's log with `cached: true`.
+    """
     ids = list(task_ids or task_ids_for(split, profile))
-    # keyed on the exact task list, so callers passing explicit ids (growth loop) still hit it
-    key = hashlib.sha256(",".join(ids).encode()).hexdigest()[:10]
-    cache_file = CACHE / f"round0-{split}-{key}.json"
     cacheable = mode == "baseline" and round == 0
-    if cacheable and use_cache and cache_file.exists():
-        cached = json.loads(cache_file.read_text())
-        for outcome in cached["results"]:
-            for e in outcome["events"]:
-                _replay(log, e)
-        if split == "heldout":
-            log.emit("eval.heldout", round=round, taskId=None, split=split, passed=cached["passed"],
-                     total=cached["total"], avgModelCalls=cached["avgModelCalls"], cached=True)
-        return cached
+    cdir = CACHE / "round0" / config_key(maxSteps=max_steps, maxSeconds=max_seconds) if cacheable else None
 
     run_dir = WORK / (log.run_id or f"adhoc-{int(time.time())}") / f"r{round}-{split}"
-    results = [
-        run_one(tid, split=split, mode=mode, round=round, log=log, registry=registry, run_dir=run_dir,
-                max_steps=max_steps, max_seconds=max_seconds, executor=executor)
-        for tid in ids
-    ]
+    results = []
+    for tid in ids:
+        cfile = cdir / f"{tid}.json" if cdir else None
+        if cfile and use_cache and cfile.exists():
+            outcome = json.loads(cfile.read_text())
+            for e in outcome["events"]:
+                _replay(log, {**e, "split": split})
+            results.append(outcome)
+            continue
+        outcome = run_one(tid, split=split, mode=mode, round=round, log=log, registry=registry, run_dir=run_dir,
+                          max_steps=max_steps, max_seconds=max_seconds, executor=executor)
+        if cfile and not outcome.get("error"):
+            cfile.parent.mkdir(parents=True, exist_ok=True)
+            cfile.write_text(json.dumps(outcome, default=str))
+        results.append(outcome)
     passed = sum(r["pass"] for r in results)
     out = {
         "split": split, "mode": mode, "round": round, "profile": profile,
@@ -210,9 +221,6 @@ def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str
     if split == "heldout":
         log.emit("eval.heldout", round=round, taskId=None, split=split, passed=passed,
                  total=len(results), avgModelCalls=out["avgModelCalls"])
-    if cacheable:
-        CACHE.mkdir(parents=True, exist_ok=True)
-        cache_file.write_text(json.dumps(out, default=str))
     return out
 
 
@@ -237,8 +245,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tasks", help="comma-separated task ids (overrides the split's list)")
     ap.add_argument("--limit", type=int, help="only the first N tasks of each split")
     ap.add_argument("--registry", default=None)
-    ap.add_argument("--max-steps", type=int, default=12)
-    ap.add_argument("--max-seconds", type=int, default=120)
+    ap.add_argument("--max-steps", type=int, default=MAX_STEPS)
+    ap.add_argument("--max-seconds", type=int, default=MAX_SECONDS, help="per-task safety cap (wall clock)")
+    ap.add_argument("--executor", choices=("auto", "sandbox", "inprocess"), default="auto",
+                    help="manifest mode: run grown routines in Warden's kernel sandbox (auto = when available)")
     ap.add_argument("--force", action="store_true", help="ignore the round-0 cache")
     ap.add_argument("--label", default=None)
     args = ap.parse_args(argv)
@@ -248,8 +258,14 @@ def main(argv: list[str] | None = None) -> int:
 
     label = args.label or f"eval-{args.mode}-r{args.round}"
     log = EventLog.create(label, round=args.round)
-    log.emit("run.start", mode=args.mode, student=STUDENT, teacher=TEACHER, online=is_online(),
-             profile=args.profile)
+    executor = None
+    if args.mode == "manifest":
+        from warden.sandbox import make_executor
+        executor = make_executor(args.executor, log)
+    log.emit("run.start", mode=args.mode, student=STUDENT, teacher=None, online=is_online(),
+             profile=args.profile, maxSteps=args.max_steps, maxSeconds=args.max_seconds,
+             registry=args.registry, executor=getattr(executor, "describe", lambda: "inprocess")(),
+             host=host_info())
     summary = {}
     for split in args.split.split(","):
         ids = args.tasks.split(",") if args.tasks else task_ids_for(split, args.profile)
@@ -258,7 +274,7 @@ def main(argv: list[str] | None = None) -> int:
         explicit = ids if (args.tasks or args.limit) else None
         res = run_split(split, mode=args.mode, round=args.round, log=log, registry=args.registry,
                         task_ids=explicit, profile=args.profile, max_steps=args.max_steps,
-                        max_seconds=args.max_seconds, use_cache=not args.force)
+                        max_seconds=args.max_seconds, executor=executor, use_cache=not args.force)
         summary[split] = {"passed": res["passed"], "total": res["total"], "avgModelCalls": res["avgModelCalls"]}
         print(f"\n{split}: {res['passed']}/{res['total']} passed, avg model calls {res['avgModelCalls']}")
         for r in res["results"]:

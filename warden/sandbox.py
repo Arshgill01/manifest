@@ -258,12 +258,19 @@ def render_profile(policy: dict) -> str:
     return "\n".join(L) + "\n"
 
 
-def render_bwrap(policy: dict, *, extra_exec: list[str] = ()) -> list[str]:
-    """bubblewrap argv prefix for `policy`. Later binds win, so read-only/masking binds come last."""
+def render_bwrap(policy: dict, *, extra_exec: list[str] = (), all_binaries: bool = False) -> list[str]:
+    """bubblewrap argv prefix for `policy`. Later binds win, so read-only/masking binds come last.
+
+    all_binaries: mount /usr/bin read-only (the tool layer's shell for the student: `cat`, `grep`, ... must work;
+    there is still no network and no $HOME, so `curl` has nowhere to go)."""
     wd = policy["workdir"]
     a = [BWRAP, "--unshare-all", "--die-with-parent", "--new-session",
          "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
          "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64", "--symlink", "usr/bin", "/bin"]
+    if all_binaries:
+        a += ["--ro-bind", "/usr/bin", "/usr/bin", "--ro-bind-try", "/usr/share", "/usr/share",
+              "--ro-bind-try", "/etc/alternatives", "/etc/alternatives", "--ro-bind-try", "/etc/passwd", "/etc/passwd",
+              "--ro-bind-try", "/etc/group", "/etc/group"]
     if policy["network_open"]:
         a += ["--share-net", "--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf",
               "--ro-bind-try", "/etc/ssl", "/etc/ssl", "--ro-bind-try", "/etc/hosts", "/etc/hosts"]
@@ -339,6 +346,17 @@ def child_env(tmpdir: Path) -> dict:
     return env
 
 
+def tool_argv(argv: list[str] | str, workdir: Path, *, write: list[str] = ("**",)) -> list[str]:
+    """Kernel-sandbox a tool-layer subprocess (pytest / the student's `bash`): read+write the workdir except
+    tests/ (read-only), no network, no $HOME, all system binaries. Returns argv unchanged without bwrap
+    or when MANIFEST_TOOL_SANDBOX=0. A string argv is run through /bin/sh -c."""
+    if os.environ.get("MANIFEST_TOOL_SANDBOX", "1") == "0" or backend() != "bwrap":
+        return argv if isinstance(argv, list) else ["/bin/sh", "-c", argv]
+    policy = build_policy({"read": ["**"], "write": list(write), "commands": [], "network": False}, workdir)
+    cmd = argv if isinstance(argv, list) else ["/bin/sh", "-c", argv]
+    return [*render_bwrap(policy, all_binaries=True), *cmd]
+
+
 def wrap_command(argv: list[str], manifest: dict | None, workdir: Path, *,
                  tmpdir: Path | None = None) -> tuple[list[str], dict]:
     """Wrap any argv (e.g. `python -m pytest`) in the manifest's sandbox. Returns (argv, env).
@@ -401,23 +419,43 @@ class SandboxExecutor:
     `run_script(script, manifest, workdir, args=()) -> dict` (third-party skill scripts)
     """
 
-    def __init__(self, log=None, *, timeout: float = 120.0, enforce: str = "auto"):
+    def __init__(self, log=None, *, timeout: float = 120.0, enforce: str = "auto", trace: bool = True):
         self.log = log
         self.timeout = timeout
+        self.trace = trace
         self.mode = "sandbox" if enforce in ("auto", "sandbox") and sandbox_available() else "fallback"
         self.backend = backend() if self.mode == "sandbox" else None
         if enforce == "sandbox" and self.mode != "sandbox":
             raise SandboxError("no kernel sandbox (sandbox-exec / bwrap) is available on this machine")
 
     # -- public ------------------------------------------------------------------
+    def describe(self) -> str:
+        return f"sandbox:{self.backend}" if self.mode == "sandbox" else "sandbox:fallback(audit-hook)"
+
+    def applies(self, routine_dir: Path, state: Any, manifest: dict | None) -> bool:
+        """Evaluate the routine's trigger in the sandbox too: teacher-written code never runs unconfined."""
+        routine_dir = Path(routine_dir)
+        sj = _state_to_json(state)
+        skill = (manifest or {}).get("skill") or routine_dir.name
+        job = {"kind": "applies", "routine": str(routine_dir / "routine.py"), "state": sj}
+        res = self._spawn(job, skill=skill, manifest=manifest, workdir=Path(sj.get("task_dir") or os.getcwd()),
+                          extra_read=[routine_dir], tools=None, student=None, timeout=min(self.timeout, 30))
+        if res["status"] != "done":
+            raise SandboxError(f"applies() of {skill!r} failed in sandbox: {res.get('error', '')[-1500:]}")
+        return bool(res.get("applies"))
+
     def run(self, routine_dir: Path, state: Any, tools: Any, student: Any, manifest: dict | None) -> Any:
         routine_dir = Path(routine_dir)
         sj = _state_to_json(state)
         workdir = Path(sj.get("task_dir") or getattr(tools, "workdir", None) or os.getcwd())
         skill = (manifest or {}).get("skill") or routine_dir.name
-        job = {"kind": "routine", "routine": str(routine_dir / "routine.py"), "state": sj}
+        job = {"kind": "routine", "routine": str(routine_dir / "routine.py"), "state": sj, "trace": self.trace}
+        # a routine may make several student calls (minutes each on CPU): bound it by the task's own deadline
+        deadline = getattr(tools, "deadline", None)
+        timeout = max(5.0, deadline - time.monotonic() + 5) if deadline else self.timeout
         res = self._spawn(job, skill=skill, manifest=manifest, workdir=workdir,
-                          extra_read=[routine_dir], tools=tools, student=student)
+                          extra_read=[routine_dir], tools=tools, student=student, timeout=timeout,
+                          log=getattr(tools, "log", None) or self.log)
         if res["status"] != "done":
             raise SandboxError(f"routine {skill!r} failed in sandbox: {res.get('error', '')[-2000:]}"
                               f"\n--- stderr ---\n{res.get('stderr', '')[-1500:]}")
@@ -439,7 +477,9 @@ class SandboxExecutor:
                           enforcement=self.mode)
 
     def _spawn(self, job: dict, *, skill: str, manifest: dict | None, workdir: Path,
-               extra_read: list[Path], tools: Any, student: Any) -> dict:
+               extra_read: list[Path], tools: Any, student: Any, timeout: float | None = None,
+               log: Any = None) -> dict:
+        timeout = timeout or self.timeout
         tmp = Path(tempfile.mkdtemp(prefix="warden-"))
         policy = build_policy(manifest, workdir, extra_read=extra_read, tmpdir=tmp)
         job = {**job, "policy": policy, "enforce": self.backend != "sandbox-exec", "skill": skill}
@@ -456,7 +496,7 @@ class SandboxExecutor:
         stderr: list[str] = []
         t = threading.Thread(target=lambda: stderr.extend(proc.stderr), daemon=True)
         t.start()
-        timer = threading.Timer(self.timeout, proc.kill)
+        timer = threading.Timer(timeout, proc.kill)
         timer.start()
         blocks: list[dict] = []
         result: dict = {"status": "error", "error": "child exited without a result"}
@@ -471,6 +511,9 @@ class SandboxExecutor:
                 if op == "block":
                     blocks.append(msg)
                     self._block(skill, msg["attempted"], msg["reason"])
+                elif op == "event":
+                    if log is not None and msg.get("type") in ("fn.call", "fn.return"):
+                        log.emit(msg["type"], **(msg.get("data") or {}))
                 elif op == "call":
                     reply = self._dispatch(msg, tools, student)
                     proc.stdin.write(json.dumps(reply, default=str) + "\n"); proc.stdin.flush()
@@ -489,7 +532,7 @@ class SandboxExecutor:
             t.join(timeout=1)
             shutil.rmtree(tmp, ignore_errors=True)
         if proc.returncode is not None and proc.returncode < 0 and result["status"] == "error":
-            result["error"] = f"killed after {self.timeout:.0f}s timeout"
+            result["error"] = f"killed after {timeout:.0f}s timeout"
         err_text = "".join(stderr)
         result["stderr"] = err_text[-4000:]
         result["blocks"] = blocks
@@ -521,6 +564,39 @@ class SandboxExecutor:
             return {"ok": False, "type": "PermissionError", "error": f"{target}.{method} is not proxied"}
         except Exception as e:  # surface to the routine as an exception of the same name
             return {"ok": False, "type": type(e).__name__, "error": str(e)}
+
+
+class RoutedExecutor:
+    """Hand-written seed routines (routines/seed/) run in-process; everything else, i.e. anything the
+    teacher wrote (grown routines, growth candidates), runs in the kernel sandbox: run() and applies()."""
+
+    def __init__(self, log=None, *, enforce: str = "auto", trace: bool = True):
+        from harness.controller import InProcessExecutor
+
+        self.inproc = InProcessExecutor(trace=trace)
+        self.sandbox = SandboxExecutor(log, enforce=enforce, trace=trace)
+        self.seed_root = _real(ROOT / "routines" / "seed")
+
+    def describe(self) -> str:
+        return f"seed:inprocess, grown:{self.sandbox.describe()}"
+
+    def _pick(self, routine_dir: Path):
+        return self.inproc if _real(routine_dir).startswith(self.seed_root + "/") else self.sandbox
+
+    def applies(self, routine_dir: Path, state: Any, manifest: dict | None) -> bool:
+        return self._pick(routine_dir).applies(routine_dir, state, manifest)
+
+    def run(self, routine_dir: Path, state: Any, tools: Any, student: Any, manifest: dict | None) -> Any:
+        return self._pick(routine_dir).run(routine_dir, state, tools, student, manifest)
+
+
+def make_executor(kind: str = "auto", log=None):
+    """auto: RoutedExecutor (kernel sandbox when available, else the audit-hook fallback);
+    sandbox: the same but refuse to run without a kernel sandbox; inprocess: no sandbox (tool layer only)."""
+    if kind == "inprocess":
+        from harness.controller import InProcessExecutor
+        return InProcessExecutor()
+    return RoutedExecutor(log, enforce="sandbox" if kind == "sandbox" else "auto")
 
 
 # --------------------------------------------------------------------------- self-test

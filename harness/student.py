@@ -24,8 +24,12 @@ from harness.log import EventLog
 
 DEFAULT_MODEL = "qwen3.5:4b"
 OPTIONS = {"temperature": 0, "num_ctx": 16384, "num_predict": 768}
-KEEP_ALIVE = "15m"
-HTTP_TIMEOUT = 180
+if os.environ.get("STUDENT_NUM_THREAD"):  # Ollama defaults to physical cores; on a 2c/4t VM all 4 is ~15% faster
+    OPTIONS["num_thread"] = int(os.environ["STUDENT_NUM_THREAD"])
+KEEP_ALIVE = "30m"
+# One call can legitimately take minutes on a CPU-only box (a cold 10k-token prompt at ~20 tok/s is ~8 min).
+# The task's wall clock (SIGALRM) is the real limit; this only guards against a hung connection.
+HTTP_TIMEOUT = float(os.environ.get("STUDENT_HTTP_TIMEOUT", 900))
 
 
 class TaskStop(BaseException):

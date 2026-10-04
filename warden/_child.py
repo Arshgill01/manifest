@@ -195,12 +195,22 @@ def main() -> None:
     sys.stdin = open(os.devnull)  # routine code must not read the RPC channel
     sys.addaudithook(_hook)
     try:
-        if job["kind"] == "routine":
+        if job["kind"] in ("routine", "applies"):
             import importlib.util
             spec = importlib.util.spec_from_file_location("routine", job["routine"])
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
             state = _load_state(job["state"])
+            if job["kind"] == "applies":
+                _send({"op": "done", "applies": bool(mod.applies(state))})
+                return
+            if job.get("trace"):
+                try:
+                    from harness.fntrace import instrument
+                    instrument(mod, lambda t, d: _send({"op": "event", "type": t, "data": d}),
+                               routine=str(getattr(mod, "NAME", job.get("skill") or "routine")))
+                except ImportError:
+                    pass
             tools = _Proxy("tools", _policy["workdir"])
             student = _Proxy("student")
             new = mod.run(state, tools, student)
