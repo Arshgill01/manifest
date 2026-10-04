@@ -54,30 +54,8 @@ def load_env() -> None:
     load_dotenv(ROOT / ".env", override=False)
 
 
-@dataclass(frozen=True)
-class Prices:
-    """USD per 1M tokens. Defaults are DeepSeek's published API prices; override from .env."""
-
-    input_miss: float = 0.28
-    input_hit: float = 0.028
-    output: float = 0.42
-
-    @classmethod
-    def from_env(cls) -> "Prices":
-        def f(key: str, default: float) -> float:
-            v = os.environ.get(key)
-            return float(v) if v else default
-
-        d = cls()
-        return cls(
-            input_miss=f("TEACHER_PRICE_IN_PER_M", d.input_miss),
-            input_hit=f("TEACHER_PRICE_CACHED_PER_M", d.input_hit),
-            output=f("TEACHER_PRICE_OUT_PER_M", d.output),
-        )
-
-    def cost(self, prompt_tokens: int, out_tokens: int, cache_hit_tokens: int = 0) -> float:
-        miss = max(prompt_tokens - cache_hit_tokens, 0)
-        return (miss * self.input_miss + cache_hit_tokens * self.input_hit + out_tokens * self.output) / 1e6
+# Prices / peak schedule / ledger / caps live in harness/budget.py (re-exported here for old imports).
+from harness.budget import Budget, PriceSchedule, Prices, TeacherBudgetExceeded, is_peak  # noqa: E402,F401
 
 
 # --------------------------------------------------------------------------- validation
@@ -277,6 +255,8 @@ class Teacher:
         api_key: str | None = None,
         prices: Prices | None = None,
         max_tokens: int = 32000,  # reasoning tokens count against this; 8000 truncated real proposals
+        budget: Budget | None = None,
+        run_id: str | None = None,
     ):
         load_env()
         self.log = log
@@ -295,8 +275,12 @@ class Teacher:
                 timeout=300,
                 max_retries=2,
             )
+        # A real client gets a spend guard + ledger by default; injected (test) clients only if asked.
+        self.budget = budget if budget is not None else (Budget() if client is None else None)
         self.client = client
-        self.prices = prices or Prices.from_env()
+        self.fixed_prices = prices          # tests pin prices; otherwise the peak/off-peak schedule decides
+        self.schedule = PriceSchedule.from_env()
+        self.run_id = run_id
         self.max_tokens = max_tokens
         self.cost_usd = 0.0
         self.calls = 0
@@ -330,7 +314,11 @@ class Teacher:
         raise AssertionError("unreachable")
 
     def _chat(self, purpose: str, messages: list[dict], max_tokens: int, attempt: int) -> str:
+        if self.budget is not None:
+            self.budget.before_call()  # may wait for off-peak; raises TeacherBudgetExceeded
         self.prompts.append([dict(m) for m in messages])
+        peak = is_peak()
+        prices = self.fixed_prices or self.schedule.prices()
         t0 = time.monotonic()
         try:
             resp = self.client.chat.completions.create(
@@ -347,9 +335,12 @@ class Teacher:
         prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
         out_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
         cache_hit = _cache_hit_tokens(usage)
-        cost = self.prices.cost(prompt_tokens, out_tokens, cache_hit)
+        cost = prices.cost(prompt_tokens, out_tokens, cache_hit)
         self.cost_usd += cost
         self.calls += 1
+        if self.budget is not None:
+            self.budget.record(cost=cost, purpose=purpose, model=self.model, promptTokens=prompt_tokens,
+                               cacheHitTokens=cache_hit, outTokens=out_tokens, peak=peak, runId=self.run_id)
         self.log.emit(
             "model.call",
             model=self.model,
@@ -360,6 +351,7 @@ class Teacher:
             ms=ms,
             cacheHitTokens=cache_hit,
             costUsd=round(cost, 6),
+            peak=peak,
             attempt=attempt,
             prompt=(str(messages[-1].get("content", ""))[-1200:] if messages else ""),
             response=(resp.choices[0].message.content or "")[:4000],
