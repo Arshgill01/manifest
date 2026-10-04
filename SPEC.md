@@ -1,207 +1,233 @@
-# Manifest: Build Spec (single source of truth)
+# Manifest: Spec v2 (single source of truth)
 
-> **Manifest is a coding-agent harness that grows itself.** A 4B model on a laptop fails at agent work because of *process* (loops, bad tool calls, never re-running tests), not intelligence. Manifest watches it fail on practice tasks; an open frontier model (DeepSeek V4.1 Flash) writes the missing control routines as **code**; each routine must pass a gate on unseen tasks and earn a **permission manifest** from **Warden** before it is kept. After growth, the 4B model + grown harness runs **fully offline** on your real code.
+> **Manifest grows a coding-agent harness for a small local model.** A 4B model can usually *fix* a bug
+> once it is looking at the right lines; it fails as an agent because of *process* (wanders, re-reads,
+> never commits to an edit, never re-runs the full suite). Manifest runs the student on practice tasks,
+> shows a frontier **teacher** its failures at the level of functions, and lets the teacher grow the
+> missing control flow **as code** (routines). Every candidate must repair the failures it was shown,
+> must not lower a separate gate set, and must earn a **Warden** permission manifest. The grown harness
+> then runs **fully offline** with the 4B model, every teacher-written line inside a kernel sandbox.
 >
-> **Tagline:** Taught once online. Runs offline forever. Your code never leaves your laptop.
+> Taught once online. Runs offline forever. Your code never leaves your machine.
 
-Every agent working on this repo: read this whole file first. Do not change the **Contracts** section without the integrator (the human).
+v2 replaces the hackathon spec (archived in `docs/history/`). What changed and why:
+
+| | Hackathon (v1, 2026-10-03) | v2 (now) |
+|---|---|---|
+| Growth algorithm | fixed rounds, one routine per round | the paper's failure-window stream (§5): window K, repair budget R_max, edit budget L, repair threshold Q, gate + transactional rollback |
+| Teacher sees | ≤6 failed traces (routine/tool/student calls) | the window's traces **with a function-level execution graph** inside routines (`fn.call`/`fn.return`) + offline diagnostics |
+| Teacher may change | exactly one routine | up to L functions across routines, inside the trace-scoped set; no deletions |
+| Gate rule | gate ↑ (or = with −20 % calls) and no per-task regression | paper rule: ≥ Q window repairs **and** SR_gate(candidate) ≥ SR_gate(checkpoint); per-task regressions logged |
+| Budget | 240 s wall clock (binding) | 12 steps / 24 student calls (binding, same for every harness), 1800 s wall clock only as a safety cap |
+| Held-out | every round | once per finished harness (h0, h\*), never during growth |
+| Sandbox | macOS `sandbox-exec`, not actually used during eval | Linux `bwrap` (and macOS), used for every grown routine (`run` **and** `applies`) and every tool subprocess |
+| Evidence | one run, 3/3/3 tasks | full suite, per-task records, task-level bootstrap CIs, paired comparisons, ablations |
 
 ---
 
 ## 0. Ground rules
 
-- License: MIT. Public GitHub repo.
-- **Never hand-write grown routines.** The seed harness is deliberately minimal. Every routine in `routines/grown/` must come from the teacher and be logged (`growth.proposal`). Hand-writing them would fake the result.
-- Teacher never sees anything from the **held-out** split (no outcomes, no traces, no task contents).
-- Teacher only ever sees **synthetic generated tasks**, never a user's real repo.
-- Cite the paper in the README: *"Grow the Harness, Not the Context" (arXiv 2609.26760)*. Our additions: coding domain, routines exported as Agent Skills, Warden in the gate + at runtime, fully offline deployment.
-- Disclose any starters/templates in README.
-- Commit every ~30 minutes with clear messages.
+- **Never hand-write grown routines.** `harnesses/<run>/routines/` and `routines/grown/` come only from the
+  teacher, with provenance in the growth log (`growth.proposal`). The seed routines stay minimal.
+- **The teacher never sees held-out material**: no ids, no traces, no outcomes, no task contents, and not
+  the held-out-only domain. Enforced by `assert_no_leak` on every teacher context (unit-tested).
+- The teacher only sees **synthetic generated tasks**, never a user's repo.
+- **The harness never grades itself.** The runner re-runs the real suite and fails any task whose test-side
+  files changed (§3.4).
+- Grown routines may not encode task ids, domain names, module names or expected answers (§5.4 lint).
+- Every number in `RESULTS.md` is recomputed from committed event logs by a script. Nothing hand-entered.
+- Cite *"Grow the Harness, Not the Context"* (arXiv 2609.26760). Our additions: coding domain with verified
+  bug shapes, routines exported as Agent Skills, Warden in the gate and at run time, fully offline deployment.
+- Commit at every checkpoint; never commit `.env`.
 
-## 1. Models
+## 1. Models and host
 
 | Role | Model | Access | Settings |
 |---|---|---|---|
-| **Student** | Qwen3.5-4B (`qwen3.5:4b`) | Ollama, local, `http://localhost:11434` | `temperature 0`, `num_ctx 16384` (8 GB RAM), thinking **off** (`think=False`), max output 768 tokens |
-| **Teacher** | DeepSeek V4.1 Flash (MIT open weights) | OpenAI-compatible API, base `https://api.deepseek.com`, key `DEEPSEEK_API_KEY`, model id from env `TEACHER_MODEL` (check the exact id in the DeepSeek console) | `temperature 0`; validate every JSON response, retry once on invalid |
+| Student | Qwen3.5-4B `qwen3.5:4b` (Q4_K_M) | Ollama ≥ 0.35, `http://localhost:11434` | `temperature 0`, `think=False`, `num_ctx 16384`, `num_predict 768`, `num_thread` = `STUDENT_NUM_THREAD` (4 on the VM) |
+| Teacher | DeepSeek V4.1 Flash, API id `deepseek-flash` | OpenAI-compatible, `https://api.deepseek.com`, key `DEEPSEEK_API_KEY` in `.env` | `temperature 0`, JSON mode, validated + one retry |
 
-Same student model as the paper's small-model setting. That's deliberate: it lets us compare against published numbers.
+Reference host for v2 numbers: `skywalker`, GCP VM, 4 vCPU AMD EPYC 7B12 (2 cores × 2 threads), 8 GB RAM,
+**CPU only**. Measured: ~20–23 tok/s prompt eval, ~5–8 tok/s generation, so one student turn is 50–90 s
+and a 12-step tool-calling task is 15–20 min. Ollama reuses the KV prefix of the previous request (single
+slot), so an appended conversation turn costs only its new tokens while a fresh 3k-token prompt costs
+~2.5 min. Every `run.start` records `host` (CPU, RAM, Ollama version, model digest, options, code hash).
+
+**Teacher spend policy** (`harness/teacher.py`, `harness/budget.py`):
+- Prices are DeepSeek's published per-1M rates with the peak/off-peak schedule
+  (peak = 01:00–04:00 and 06:00–10:00 UTC, Mon–Fri; off-peak is half price). Defaults: off-peak $0.15 in /
+  $0.003 cached / $0.60 out; peak double. Overridable from `.env`.
+- Every teacher call is appended to `.manifest/teacher-ledger.jsonl` (ts, purpose, tokens, cost, run id).
+- Hard caps: `TEACHER_BUDGET_USD` (all-time, default 2.00) and `--teacher-budget` per run (default 0.75).
+  A call that would start above the cap raises `TeacherBudgetExceeded` and the growth run checkpoints.
+- `--teacher-hours offpeak` (default for long runs) waits for off-peak before each teacher call.
 
 ## 2. Repo layout
 
 ```
-manifest/
-  SPEC.md  README.md  LICENSE  CONTRACT.md (= section 7 copied)
-  tasks/        gen.py, templates/, splits.json, generated/<task-id>/
-  harness/      loop.py (baseline tool-calling), controller.py (routine engine),
-                tools.py, student.py, teacher.py, log.py
-  routines/     seed/ (minimal, hand-written, tiny), grown/ (teacher-written only)
-  growth/       grow.py (rounds), gate.py, eval.py
-  warden/       scan.py, manifest.py, sandbox.py (macOS sandbox-exec profiles), cli.py
-  skills/       exported Agent Skills (one per accepted routine) + skills/warden/
-  gui/          Vite + React viewer over .manifest/runs/*.jsonl
-  demo/         thirdparty-skills/ (rigged, harmless), fakehome/ (fake ~/.ssh), sink.py
-  .manifest/runs/   event logs (JSONL)
-  .github/workflows/skills.yml   (skills-ref validate skills/*)
+SPEC.md  CONTRACT.md  CLAUDE.md  README.md  RESULTS.md  ROADMAP.md
+tasks/        gen.py, mutations.py, templates/<domain>/, generated/<task-id>/, splits.json, index.json, labels.py
+harness/      student.py, teacher.py, budget.py, tools.py, loop.py (baseline), controller.py, state.py,
+              fntrace.py (function-level trace), env.py (env + host provenance), log.py, run.py
+routines/     seed/{start,ask-student}   grown/ + registry.json (the hackathon harness, kept as-is)
+harnesses/    <run-id>/registry.json + routines/<name>/{routine.py,manifest.json,SKILL.md,proposal.json}
+              one directory per v2 growth run: every accepted harness version h_t, final h*
+growth/       stream.py (v2 growth, paper Alg. 1), grow.py (v1 rounds + shared helpers), gate.py,
+              traces.py, validate.py (edit budget / scope / specificity), eval.py (runner), report.py, stats.py
+warden/       scan.py, manifest.py, sandbox.py (bwrap | sandbox-exec), _child.py, cli.py, card.py
+skills/       exported Agent Skills (grown routines that were promoted) + skills/warden/
+gui/          Vite + React viewer and launcher over .manifest/runs/*.jsonl
+demo/         rigged third-party skill, fakehome (fake ~/.ssh), sink
+docs/history/ hackathon SPEC / CONTRACT / SPECLIST / CLAUDE.md
+.manifest/    runs/*.jsonl (committed evidence), cache/ (round-0 per-task cache), growth/<run>/ (checkpoints)
 ```
 
-Python 3.11+ for everything except `gui/`. Deps: `ollama`, `openai`, `pytest`, `pydantic`.
+## 3. Tasks and evaluation protocol
 
-## 3. Task suite ("serious, not toy")
+### 3.1 Suite
+Generated, deterministic (seed 1337) multi-module Python services; each task = one package + pytest suite +
+exactly one injected root-cause bug + `TASK.md` ("The test suite is failing. Make it pass without editing
+tests."). Domains: `ledgerly`, `stockroom`, `slotbook`, `ratekeeper`, `csvflow` (held-out only). Bug shapes
+(mechanically verified by `tasks.gen`): deep call chain, one root / many failures, regression trap,
+misleading surface. Root-cause metadata lives only in `tasks/index.json`.
 
-Generated, deterministic (fixed seed), **multi-module Python packages** that look like real small services. Every task = one package + a pytest suite + exactly one injected root-cause bug + `TASK.md` ("The test suite is failing. Make it pass without editing tests.").
+### 3.2 Splits
+`tasks/splits.json` profiles: `full` (train 12 / gate 6 / held-out 8 incl. 2 novel-domain), `core`
+(3/3/3), `demo`. **ROADMAP:** grow the suite (more verified mutations per template, one more held-out-only
+domain) so held-out CIs tighten; new tasks are appended to splits, never reshuffled, so earlier per-task
+results stay valid.
 
-**Domains** (each a package with 5–8 modules, 20–40 tests):
-1. `ledgerly`: invoices, line items, tax, discounts, currency rounding
-2. `stockroom`: inventory, reservations, reorder thresholds
-3. `slotbook`: scheduling, time ranges, overlap detection, time zones
-4. `ratekeeper`: token-bucket rate limiter, windows, quotas
-5. `csvflow`: CSV ingest, schema validation, transforms, aggregation
+### 3.3 Budget (identical for every harness)
+- **12 steps** per task (baseline: model turns; controller: routine runs) and **24 student calls**.
+- **1800 s** wall clock per task as a safety cap only. A task that hits it is labelled `budget` if the
+  model was still answering; such runs are reported separately, never silently counted as process failures.
+- Student temperature 0. Determinism is checked, not assumed (§3.6).
 
-**Bug shapes**: what makes it serious. The fix is always small *once found*; finding it takes process:
-- **Deep call chain**: the failing test is in `test_invoice.py`, but the bug is 2–3 calls down in `money.py` (must follow the traceback to the innermost *repo* frame).
-- **One root cause, many failures**: 3–6 tests fail from one bug in a shared util.
-- **Regression trap**: the obvious local fix makes another test fail (must re-run the *full* suite and roll back).
-- **Misleading surface**: the error message points at a caller; the defect is in the callee.
-- Mutation operators: wrong comparison, off-by-one in range or slice, missing return, swapped args, wrong rounding mode, wrong default, inverted condition.
+### 3.4 Judging
+`growth/eval.py` copies the task to `.manifest/work/<run>/<split>/<task>/`, sets `HOME=demo/fakehome`, runs
+the harness, then re-runs the full suite itself. Pass ⇔ every original test passes **and** no test-side file
+(`tests/**`, conftest, pytest config, `.pth`, `sitecustomize`) changed or appeared.
 
-**Splits**: 26 tasks total: `train` 12, `gate` 6, `heldout` 8. Held-out includes 2 tasks from a domain **not present** in train/gate (generalization). Stored in `tasks/splits.json`.
+### 3.5 Metrics (per task, from the event log)
+pass; student calls; prompt tokens (and Ollama's prefix-reuse is visible as low `promptTokens`-per-ms);
+output tokens; wall time; steps; routine calls; stop reason; failure label (`process|knowledge|format|budget`,
+`tasks/labels.py`); Warden blocks. Teacher: calls, tokens (cache hit/miss), USD.
 
-**Run limits**: max 12 student steps per task; wall clock 120 s per task.
+### 3.6 Statistics (`growth/stats.py`)
+- Success rate with a **task-level bootstrap** 95 % CI (10 000 resamples), as in the paper.
+- Harness vs harness on the same tasks: paired difference with paired bootstrap CI, plus the discordant
+  counts (b = only A passes, c = only B passes) and an exact McNemar p-value.
+- Efficiency (calls, tokens, seconds): mean ± bootstrap CI, paired where applicable.
+- Determinism: a repeat of a subset reports per-task agreement; if runs disagree, report R runs and the
+  mean over runs, as the paper does (R = 3).
 
 ## 4. Harness
 
-### 4.1 Baseline mode (`--mode baseline`): round 0
-Plain tool-calling loop (what Pi or DeepSeek Harness would do with a small model). Tools: `list_files`, `read_file(path, start, end)`, `run_tests(selector?)`, `edit_file(path, search, replace)`, `bash(cmd)` (sandboxed to the task dir). The student decides everything.
+- **Baseline** (`--mode baseline`): plain tool-calling loop, tools `list_files`, `read_file`, `run_tests`,
+  `edit_file`, `bash`. The student decides everything. This is the paper's *Tool-Calling* baseline.
+- **Controller** (`--mode manifest`): a code loop over the registry; first routine whose `applies(state)` is
+  true runs; repeat until `state.done` or the budget. Seeds: `start` (load TASK.md, list files) and
+  `ask-student` (fallback: one tool-calling turn, i.e. baseline behaviour). **h0 = seeds only** (the paper's
+  strategy-free scaffold).
+- Routine API: `NAME`, `applies(state) -> bool`, `run(state, tools, student) -> state`. Student calls:
+  `student.ask(purpose, prompt, schema)` (validated, re-asked once), fixed formats `diagnose`, `patch`.
+- **Execution** (`warden.sandbox.make_executor`, default `auto`): seed routines run in-process; every other
+  routine (grown, candidates) runs `run()` **and** `applies()` in Warden's kernel sandbox; tool and student
+  calls are proxied to the parent so `Tools` (manifest-checked) and `EventLog` stay authoritative.
+- **Function-level trace** (`harness/fntrace.py`): every function defined in a routine module is wrapped;
+  calls emit `fn.call {routine, fn, depth, args}` and `fn.return {routine, fn, depth, ret|exc, ms}`, so a
+  task's events form the execution graph routine → functions → tool/student calls.
+- Tool subprocesses (pytest, the student's `bash`) run in bwrap: no network, no `$HOME`, `tests/` read-only.
 
-### 4.2 Controller mode (`--mode manifest`)
-A **code** controller drives a state object through **routines**. The student is called only for semantic steps.
+## 5. Growth (paper Algorithm 1, mapped to routines): `python -m growth.stream`
 
-```python
-# routines/<name>/routine.py
-NAME = "trace-to-source"
-def applies(state) -> bool: ...          # trigger condition, written in code
-def run(state, tools, student) -> state:  # deterministic code; may call student.ask(purpose, prompt, schema)
+### 5.1 Objects
+- Harness h_t = ordered registry + routine sources. "Functions" = top-level functions of routine modules;
+  the registry order + every routine's `applies()` play the role of the paper's `main` dispatcher.
+- Trace τ_i = task events: `routine.call`, `fn.call/return`, `tool.call`, `model.call`, `warden.block`, plus
+  the outcome. ℱ(τ_i) = routines that ran in τ_i and the functions called inside them.
+- Diagnostics E_i (offline, train only, no root cause): final judge result (still-failing tests + first
+  error line), stop reason, action statistics (reads, distinct files, edits ok/failed, test runs, full
+  re-runs after the last edit, repeated identical calls), the attempt count a_i.
+
+### 5.2 Loop
 ```
-- Controller loop: pick the first routine whose `applies(state)` is true (registry order), run it, repeat until `state.done` or limits hit.
-- Seed routines (hand-written, tiny): `start` (load TASK.md, list files), `ask-student` (fallback: give the student the state and let it pick a tool, i.e. baseline behaviour). That's all.
-- Student semantic calls use **fixed formats** (validated): `diagnose` → `{file, function, hypothesis}`; `patch` → a single search/replace block. Invalid output is re-asked once with the validation error.
-- Every routine runs through Warden's runtime enforcement (section 6.3).
+stream ← train tasks (fixed order); W ← ∅; h ← h0; h_gate ← h0; SR_gate ← SR_G(h0)
+while stream not exhausted or W ≠ ∅:
+    while |W| < K and stream not exhausted: run h on next task; failures join W with a=0
+    if W = ∅: break
+    checkpoint(h, cursor, W, counters)                          # resumable; rollback target
+    cand ← teacher(h, traces+diagnostics of W, history)         # §5.3
+    if invalid (schema / edit budget / scope / deletion / lint) or Warden "dangerous":
+        reject; attempts(W) += 1; retire a ≥ R_max; continue
+    re-run cand on W → P (solved), U
+    if |P| < Q: reject (insufficient repair); attempts += 1; retire; continue
+    if SR_G(cand) < SR_gate: reject (gate regression) → rollback; attempts += 1; retire; continue
+    accept: h ← cand; h_gate ← cand; SR_gate ← SR_G(cand); W ← U with fresh traces, a+1, retire a ≥ R_max
+h* ← h; evaluate h* once on held-out
+```
+Rejections never touch `harnesses/<run>/` beyond the candidate's staging dir; acceptance writes version
+`h<t>/` and moves `current`. Stop early on `--max-steps`, teacher budget, or `--max-hours`; all resumable
+from `.manifest/growth/<run>/checkpoint.json`.
 
-### 4.3 State (minimum)
-`task_dir, test_output, failures[{test, error, frames[]}], suspect{file, line, function}, context_snippet, patches[], last_full_run{passed, failed}, done, steps, model_calls`
+### 5.3 Teacher input and output
+Input Z_t = (current harness source with per-routine scope marks, window traces rendered as a nested
+execution graph, diagnostics, history of earlier steps (names, outcomes, categories only), routine API).
+Output JSON:
+```json
+{"rationale": str,
+ "changes": [{"name": str, "trigger_description": str, "routine_py": str, "skill_md": str,
+              "requested_permissions": {"read": [..], "write": [..], "commands": [..], "network": false}}],
+ "order": [str]}      // optional new order of grown routines (seeds stay first/last)
+```
 
-## 5. Growth loop (`growth/grow.py`)
+### 5.4 Constraints (validated in `growth/validate.py` before anything runs)
+- Edit budget **d_fun ≤ L**: added or modified top-level functions summed over all changed routines.
+- **Scope**: a routine's body may change only if it ran in some window trace; trigger-only changes
+  (`applies`, `NAME`, constants) are always allowed (they are the dispatcher). New routines are allowed.
+- **No deletions**: existing routines stay in the registry; existing top-level functions stay defined.
+- ≤ 150 lines per routine; stdlib + pydantic; the routine API; seeds are immutable.
+- **Specificity lint**: no task ids, domain names, template module names (e.g. `money`, `bucket`), or
+  literal expected answers. Violations reject the candidate (logged as `validate`).
+- Warden: static scan + teacher deobfuscation summary → manifest; `dangerous` rejects.
 
-Per round `r = 1..4`:
-1. Run current harness on **train**; keep up to 6 failed traces (bounded window).
-2. **Teacher prompt** includes: this spec's routine API, current controller registry + routine source, the failed traces (function-level: which routine ran, inputs/outputs, student calls), and the instruction: *"Propose exactly ONE change: a new routine (≤150 lines) or an edit to one existing routine's code or trigger. Move recurring control decisions into code; leave only semantic judgement to the student."* Output JSON: `{name, rationale, trigger_description, routine_py, skill_md, requested_permissions}`.
-3. **Warden**: static scan + generate the permission manifest (section 6). Reject if dangerous.
-4. **Gate**: run on the **gate** split with the candidate. Accept iff gate passes ↑ (or equal with model calls ↓ ≥ 20%) **and** no previously passing gate task regresses. Log `gate.result`.
-5. If accepted: copy to `routines/grown/`, export to `skills/<name>/` (spec-compliant SKILL.md + `scripts/routine.py`), append to registry.
-6. Run **held-out** for reporting only → `eval.heldout`. Nothing from this goes to the teacher.
+### 5.5 Hyperparameters (defaults; paper values in brackets)
+K = 4 [8 / 4], R_max = 3 [5], Q = 1 [repair threshold], L = 10 [10], candidates/step = 1 [1],
+budget per task as §3.3 [50 calls, 900–1800 s]. Train stream = `full` train (12), gate = `full` gate (6).
 
-Stop early if 2 consecutive rejections. Expected teacher cost: well under $0.50 total.
+### 5.6 Ablations (`--ablate`)
+`no-gate` (accept on repairs alone), `window-1` (K = 1), `no-fn-trace` (traces without `fn.*` events and
+no scope restriction: whole-program edits), each a full growth run evaluated once on held-out.
 
-**8 GB RAM note**: run tasks sequentially; nothing else heavy open. The round-0 baseline is the slowest run. Cache round-0 results; never recompute them.
+## 6. Warden
+- **Static scan** (`warden/scan.py`): network imports/calls, subprocess/os.system, eval/exec/decode-then-
+  exec, paths outside the task dir, env/secret reads, hidden instructions in SKILL.md; plus a teacher pass
+  that deobfuscates and summarises the code.
+- **Manifest** (`warden/manifest.py`): `{skill, read, write, commands, network, findings, verdict}`;
+  grown default read `**`, write `src/**`, commands `python -m pytest`, network false.
+- **Runtime** (`warden/sandbox.py`): Linux bubblewrap (namespaces; only the interpreter, venv, harness code,
+  routine dir and manifest globs are mounted; `tests/` read-only; fake home with masked `.ssh`; no network)
+  or macOS `sandbox-exec` (Seatbelt profile). An audit hook in the child logs `warden.block` and raises
+  PermissionError. No kernel sandbox → audit-hook-only fallback, reported as such.
+- CLI: `manifest warden audit <dir>`, `manifest skill add <dir> [--force-run]`. Agent Skill `skills/warden/`.
 
-## 6. Warden (permission manifests + enforcement)
+## 7. Event log
+Schema in `CONTRACT.md`. One JSONL per invocation in `.manifest/runs/`; a growth run is one file.
+v2 adds `fn.call`, `fn.return`, `growth.window`, `growth.repair`, `growth.step`, `growth.checkpoint`, and
+`run.start.host`. Consumers ignore unknown fields and types.
 
-### 6.1 Static scan (`warden/scan.py`)
-Rules (regex/AST): network imports/calls (`socket`, `urllib`, `requests`, `http`, `curl`, `wget`), `subprocess` with shell strings, `eval`/`exec`/base64-decode-then-exec, paths outside the task dir (`~`, `/Users`, `..`), env reads (`os.environ`, `.env`). Plus a teacher pass: deobfuscate and summarize what the code actually does → `findings[]`.
+## 8. GUI
+`gui/`: replay/live-tail of event logs, task board, session view, growth timeline with Warden cards,
+results. Launches only allow-listed CLI invocations. Must keep working fully offline.
 
-### 6.2 Manifest (`warden/manifest.py`)
-`{skill, read: [globs], write: [globs], commands: [prefixes], network: false|true, findings: [], verdict}`. Default for grown routines: read `**` in the task dir, write `src/**` only (never `tests/**`), commands `python -m pytest`, network **false**.
-
-### 6.3 Runtime enforcement (`warden/sandbox.py`)
-- Every routine and every skill script executes in a **subprocess under macOS `sandbox-exec`** with a profile generated from its manifest: deny network unless allowed; file reads/writes limited to the allowed globs plus the system paths needed for Python.
-- The tool layer also checks paths and commands before executing (defense in depth; logs `warden.block`).
-- `HOME` is set to `demo/fakehome/` for all runs (contains a fake `~/.ssh/id_ed25519`).
-- **Test this in the first 20 minutes.** If `sandbox-exec` fights you, fall back to tool-layer enforcement plus running the subprocess with `HOME=fakehome`, and say so honestly in the README.
-
-### 6.4 CLI
-`manifest warden audit <skill-dir>` → bordered permission card + verdict. `manifest skill add <dir>` → audit, then install with manifest.
-
-### 6.5 The `warden` Agent Skill (`skills/warden/`)
-Spec-compliant (agentskills.io): `name: warden`, a description of when to use it ("before installing or running any third-party agent skill"), `scripts/audit.py` that runs the static scan + manifest generation. Works in Claude Code, Codex, etc.
-
-## 7. Contracts: event log (`.manifest/runs/<run-id>.jsonl`)
-
-One JSON object per line. Every event has `{ts, type, round, taskId, split}` (`taskId`/`split` may be null).
-
-| type | extra fields |
-|---|---|
-| `run.start` | `mode, student, teacher, online: bool` |
-| `task.start` | `domain, bugShape` |
-| `task.end` | `pass, steps, modelCalls, routineCalls, ms` |
-| `routine.call` | `routine, summary, ms` |
-| `model.call` | `model, role: "student"/"teacher", purpose, promptTokens, outTokens, ms, cacheHitTokens?` |
-| `tool.call` | `tool, args, ok, summary` |
-| `growth.proposal` | `routine, rationale, triggerDescription, skillPath` |
-| `warden.manifest` | `skill, read[], write[], commands[], network, findings[], verdict` |
-| `warden.block` | `skill, attempted, reason` |
-| `gate.result` | `routine, accepted, gateBefore, gateAfter, regressions[], modelCallsBefore, modelCallsAfter` |
-| `eval.heldout` | `passed, total, avgModelCalls` |
-| `run.end` | `summary` |
-
-## 8. GUI (`gui/`): a viewer, never a controller
-
-Vite + React. Reads `.manifest/runs/*.jsonl`. **Replay** mode (speed 1×–20×, scrub by round) and **Live** mode (tails the newest file).
-
-Layout:
-- **Top bar**: Student `qwen3.5:4b · local` | Teacher `DeepSeek V4.1 Flash` | big **ONLINE / OFFLINE** badge | round indicator.
-- **Left: Task board**: grid of train / gate / held-out cells, red → green per round; held-out visually distinct ("never seen by the teacher").
-- **Center: Live trace**: rows for each event; **routine rows (code)** and **student rows (model)** look clearly different, so judges see code doing the control. Expand a row for details.
-- **Right: Growth timeline**: per round: proposed routine name + rationale → Warden permission card (read/write/commands/network chips, findings) → gate result (before → after, regressions) → accepted/rejected stamp.
-- **Bottom: Results**: held-out pass rate by round (line), avg model calls per task by round, total teacher cost.
-
-Build first against a realistic fake run file (3 rounds, one Warden rejection, one block). Use Impeccable (`/impeccable critique`, `/impeccable polish`). It must look deliberate, not like a default dashboard.
-
-## 9. Demo (target 3 minutes; same script for the 2:30 scoring round and the 4:15 pitch)
-
-1. **Hook (15 s):** "Small models can think. They can't juggle. Manifest grows the juggling for them, then gets out of the way."
-2. **Round 0 (30 s, replay):** held-out board mostly red. Expand one failing `ledgerly` trace: the student ran the tests, opened `invoice.py` (wrong file), edited it, broke two other tests, never re-ran the full suite, and looped until it hit the step limit.
-3. **Growth (60 s, replay at speed):** round by round, the teacher proposes a routine (expected kinds: following the traceback to the innermost repo frame, verify-and-rollback, patch repair; whatever it actually produced). Each shows a Warden card (no network, can't write `tests/`) and the gate going up with no regressions. Point at a **rejected** proposal, if one happened.
-4. **Warden moment (20 s):** `manifest skill add demo/thirdparty-skills/quick-fix-pro`, a "marketplace" skill. Card says DANGEROUS (reads `~/.ssh`, network). Force-run it anyway → `warden.block` from the sandbox. The sink receives nothing.
-5. **Wi-Fi off (45 s, LIVE):** turn Wi-Fi off; badge flips to OFFLINE. Run a **held-out** `ledgerly` task (deep call chain + regression trap). Live trace: code routines run the tests, follow the traceback to `money.py`, and the student makes only ~2 calls (diagnose, patch). Verify-and-rollback runs the full suite → green.
-6. **Numbers (20 s):** held-out pass rate round 0 → final; model calls per task before → after; total teacher cost; N routines exported as Agent Skills, validated in CI ("use them in Claude Code today").
-7. **Close (10 s):** "Taught once online. Runs offline forever. Your code never leaves your laptop."
-
-Backup: record the full demo as a video by 2:15.
-
-## 10. Build order (cut from the bottom)
-
-1. Task generator + test runner + splits
-2. Baseline loop + student + event log (round 0)
-3. Controller + seed routines
-4. Growth loop + teacher + gate + held-out eval
-5. Warden runtime enforcement (sandbox)
-6. GUI (parallel from the start against fake data)
-7. Warden static scan + teacher deobfuscation
-8. Skills export + `warden` skill + CI validation
-9. Third-party rigged-skill demo
-
-## 11. Worktrees
-
-| WT | Owns | First deliverable |
-|---|---|---|
-| **A: tasks** | `tasks/`, `growth/eval.py` runner | 26 tasks + splits + a script that runs any harness over a split and logs events |
-| **B: harness** | `harness/`, `routines/seed/` | Baseline loop on Ollama; controller engine; event log per section 7 |
-| **C: grow** | `growth/grow.py`, `gate.py`, `teacher.py` | One full round end to end on 3 train + 2 gate tasks |
-| **D: warden** | `warden/`, `skills/warden/`, `demo/` | `sandbox-exec` profile proven to block `~/.ssh` read + network; permission card CLI |
-| **E: gui** | `gui/` | Viewer against fake run file; then point at real runs |
-
-Integrator rule: merge A+B first (round 0 is the earliest real result), then C, then D. E merges whenever.
-
-## 12. Timeline (code freeze 4:00 PM)
-
-| Time | Milestone |
-|---|---|
-| 12:25 | Repo + SPEC + LICENSE pushed; worktrees A, B, D, E start; `ollama pull qwen3.5:4b` |
-| 12:55 | **Checkpoint**: round-0 baseline on 5 train tasks with failure labels (process vs knowledge). If mostly knowledge failures, simplify bugs or show the failing line. C starts. |
-| 1:00–1:45 | Lunch; agents keep building (C, D, E) |
-| 1:45 | **Start the real growth run** (all rounds, logged); it runs while you polish |
-| 2:15 | Record the backup demo video |
-| 2:30 | Scoring round: GUI replay + live offline task |
-| 3:00–3:45 | Numbers into README, skills export + CI green, Impeccable polish, final commit |
-| 3:50 | Submit on the MLH portal (tick every eligible challenge) |
+## 9. Experiments (each one log, each in RESULTS.md)
+| id | what | split(s) | needs teacher |
+|---|---|---|---|
+| E1 | baseline tool-calling (student only) | full: train, gate, held-out | no |
+| E2 | h0 seed controller | full held-out (+ train/gate inside growth) | no |
+| E3 | hackathon harness (`triage-fix`) | full held-out | no |
+| E4 | v2 growth run → h\* | train stream + gate | yes |
+| E5 | h\* evaluated once | full held-out | no |
+| E6 | ablations (§5.6) | as E4/E5 | yes |
+| E7 | budget sensitivity: baseline at 24 steps on a subset | held-out | no |
+| E8 | Warden: selftest, rigged-skill force-run, blocks during E4/E5 | n/a | no |

@@ -9,3 +9,4 @@ gui/dist/
 # scratch copies of tasks the harness edits; never commit
 .manifest/work/
 .manifest/cache/*.tmp
+.manifest/logs/

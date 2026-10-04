@@ -1,92 +1,95 @@
-# CONTRACT.md
+# CONTRACT.md (v2)
 
-> Frozen interfaces between worktrees. Part 1 is SPEC section 7 verbatim. Part 2 pins the Python seams so A–E can build in parallel. Change only via the integrator (the human).
+Interfaces that several parts of the repo (and the GUI) depend on. Change them deliberately: update this
+file, the producers, the consumers and the tests in the same commit. The hackathon version is in
+`docs/history/CONTRACT-hackathon.md`; v2 only **adds** fields and event types, so v1 logs still replay.
 
-# Part 1 — Event log
+# Part 1: Event log (`.manifest/runs/<YYYYMMDD-HHMMSS>-<label>.jsonl`)
 
+One JSON object per line, appended and flushed per line (the GUI tails files live). Every event has
+`{ts, type, round, taskId, split}`; `ts` is ISO-8601 UTC with milliseconds; `round` is an int (0 = baseline;
+in v2 growth runs it is the optimisation step t); `split` ∈ `train | gate | heldout | null`. camelCase
+field names; extra fields allowed; consumers ignore unknown fields **and unknown types**. Write only via
+`harness.log.EventLog` (it rejects unregistered types).
 
-One JSON object per line. Every event has `{ts, type, round, taskId, split}` (`taskId`/`split` may be null).
-
-| type | extra fields |
+| type | fields |
 |---|---|
-| `run.start` | `mode, student, teacher, online: bool` |
-| `task.start` | `domain, bugShape` |
-| `task.end` | `pass, steps, modelCalls, routineCalls, ms` |
-| `routine.call` | `routine, summary, ms` |
-| `model.call` | `model, role: "student"/"teacher", purpose, promptTokens, outTokens, ms, cacheHitTokens?` |
-| `tool.call` | `tool, args, ok, summary` |
-| `growth.proposal` | `routine, rationale, triggerDescription, skillPath` |
+| `run.start` | `mode, student, teacher, online` · v2: `host{hostname,cpu,cpus,ramGb,ollamaVersion,modelDigest,studentOptions,codeHash,…}`, `maxSteps, maxSeconds, registry, executor, profile` |
+| `task.start` | `domain, bugShape` · `mode` |
+| `task.end` | `pass, steps, modelCalls, routineCalls, ms` · `judge{passed,failed,expected,testsUntouched,tampered}`, `stopReason`, `selfReportedDone`, `overtime`, `error?` |
+| `routine.call` | `routine, summary, ms` · `source: seed\|grown`, `ok` |
+| `model.call` | `model, role: student\|teacher, purpose, promptTokens, outTokens, ms` · `cacheHitTokens?`, `costUsd?`, `doneReason?`, `prompt`, `response` (excerpts), `error?`, teacher: `peak`, `attempt` |
+| `tool.call` | `tool, args, ok, summary` · `skill` |
+| `fn.call` | **v2** `routine, fn, depth, args{name: short repr}` |
+| `fn.return` | **v2** `routine, fn, depth, ms, ret \| exc` |
+| `growth.proposal` | `routine, rationale, triggerDescription, skillPath` · v2: `changes[{name, edit, functionsChanged[]}]`, `step` |
 | `warden.manifest` | `skill, read[], write[], commands[], network, findings[], verdict` |
-| `warden.block` | `skill, attempted, reason` |
-| `gate.result` | `routine, accepted, gateBefore, gateAfter, regressions[], modelCallsBefore, modelCallsAfter` |
+| `warden.block` | `skill, attempted, reason` · `enforcement` |
+| `gate.result` | `routine, accepted, gateBefore, gateAfter, regressions[], modelCallsBefore, modelCallsAfter` · `rejectReason`, `gateTotal` |
+| `growth.window` | **v2** `step, cursor, window[{taskId, attempts}], retired[], solvedOnFill[]` |
+| `growth.repair` | **v2** `step, candidate, solved[], unsolved[], threshold, ok` |
+| `growth.step` | **v2** `step, outcome: accepted\|rejected, stage: validate\|warden\|repair\|gate\|accepted, reason, changes[], dFun, harness` |
+| `growth.checkpoint` | **v2** `step, path, harness` |
 | `eval.heldout` | `passed, total, avgModelCalls` |
-| `run.end` | `summary` |
+| `run.end` | `summary` (v1 growth: `heldoutByRound, avgModelCallsByRound, teacherCostUsd, routinesAccepted`; v2 growth: `steps, accepted[], final harness, teacherCostUsd, stopReason`) |
 
+# Part 2: Python seams
 
-**Event-log rules (integrator clarifications):**
-- `ts` = ISO-8601 UTC with milliseconds, e.g. `2026-10-03T07:31:02.123Z`. `round` = int, `0` = baseline. `split` ∈ `"train" | "gate" | "heldout" | null`.
-- Field names are camelCase exactly as above. Extra fields are allowed; consumers ignore unknown fields. Never rename/remove listed fields.
-- One file per invocation: `.manifest/runs/<YYYYMMDD-HHMMSS>-<label>.jsonl` (e.g. `20261003-134500-growth.jsonl`). A full growth run (all rounds) is ONE file so the GUI can replay it. Append + flush per line (the GUI tails it live).
-- Write events only through `harness/log.py` (`EventLog`), already on `main`.
-- Optional extras we agreed on: `task.start.mode`, `routine.call.source` (`"seed"|"grown"`), `model.call.costUsd` (teacher), `gate.result.rejectReason`, `growth.proposal.status` (`"proposed"`), `run.end.summary` = `{heldoutByRound: [..], avgModelCallsByRound: [..], teacherCostUsd, routinesAccepted: [..]}`.
-
-# Part 2 — Python seams
-
-## 2.1 Task on disk (owner A)
+## 2.1 Task on disk
 ```
-tasks/generated/<task-id>/          # the ONLY thing the student/harness ever sees
-  TASK.md                           # "The test suite is failing. Make it pass without editing tests."
-  src/<pkg>/*.py   tests/test_*.py  conftest.py (adds src/ to sys.path)
-tasks/splits.json                   # {"seed":1337,"train":[ids],"gate":[ids],"heldout":[ids],"novelDomain":"<domain>"}
-tasks/index.json                    # {id: {domain, bugShape, mutation, rootCause:{file,function,line}, failingTests:[..]}}
+tasks/generated/<task-id>/          # the only thing a model or harness ever sees
+  TASK.md   src/<pkg>/*.py   tests/test_*.py   conftest.py   pytest.ini
+tasks/splits.json                   # {"seed", "novelDomain", "train", "gate", "heldout", "profiles": {name: {train, gate, heldout}}}
+tasks/index.json                    # {id: {domain, bugShape, mutation, rootCause{file,function,line,span}, failingTests, passingTests, fix}}
 ```
-- Task id: `<domain>-<nn>` (e.g. `ledgerly-03`). Root-cause metadata lives ONLY in `tasks/index.json`, never inside the task dir.
-- Tests run with: `python -m pytest -q -p no:cacheprovider` from the task dir. Pristine tasks must fail; the reference fix must pass.
+Task id `<domain>-<nn>`. Tests run with `python -m pytest -q -p no:cacheprovider` from the task dir.
 
-## 2.2 Runner (owner A) — `growth/eval.py`
+## 2.2 Runner: `growth/eval.py`
 ```python
-run_split(split: str, *, mode: str, round: int, log: EventLog,
-          registry: str | None = None, task_ids: list[str] | None = None) -> SplitResult
-# SplitResult = {split, passed, total, avgModelCalls, results: [TaskOutcome]}
-# TaskOutcome = {taskId, pass, steps, modelCalls, routineCalls, ms, events: [dict]}
+run_split(split, *, mode, round, log, registry=None, task_ids=None, profile="core",
+          max_steps=12, max_seconds=1800, executor=None, use_cache=True) -> SplitResult
+# SplitResult = {split, mode, round, profile, passed, total, avgModelCalls, results: [TaskOutcome]}
+# TaskOutcome = {taskId, pass, steps, modelCalls, routineCalls, ms, judge, error, events: [dict]}
 ```
-- Copies each task to `.manifest/work/<run-id>/<task-id>/` (pristine dir is never touched), sets `HOME=demo/fakehome`, calls `harness.run.run_task(...)`, then judges pass **itself** by re-running the full suite in the workdir AND checking `tests/` is byte-identical to pristine.
-- Emits `task.start` (before) and `task.end` (after). Emits `eval.heldout` when `split == "heldout"`.
-- CLI: `python -m growth.eval --split train --mode baseline --round 0 [--tasks a,b] [--registry routines/registry.json]`.
-- Round-0 baseline results are cached in `.manifest/cache/round0-<split>.json`; never recomputed unless `--force`.
+Round-0 baseline outcomes are cached per task in `.manifest/cache/round0/<config_key>/<task>.json`
+(key: student model + digest + options, budget, host, `BASELINE_VERSION`). `mode`: `baseline | manifest |
+oracle | noop`.
 
-## 2.3 Harness entry (owner B) — `harness/run.py`
+## 2.3 Harness entry: `harness/run.py`
 ```python
-run_task(workdir: Path, *, mode: Literal["baseline","manifest"], log: EventLog,
-         registry: str | None = None, max_steps: int = 12, max_seconds: int = 120,
-         executor: "Executor | None" = None) -> dict   # {steps, modelCalls, routineCalls, selfReportedDone}
+run_task(workdir, *, mode, log, registry=None, max_steps=12, max_seconds=120, executor=None, student=None)
+    -> {steps, modelCalls, routineCalls, selfReportedDone, stopReason}
 ```
-- Emits `routine.call`, `model.call` (student), `tool.call`, `warden.block`. Does NOT emit task.start/end.
-- `harness/tools.py`: `Tools(workdir, manifest: dict | None, log)` with `list_files()`, `read_file(path, start=None, end=None)`, `run_tests(selector=None) -> {passed, failed, output, failures:[{test, error, frames:[{file,line,function}]}]}`, `edit_file(path, search, replace)`, `bash(cmd)`. Tool layer enforces the manifest (paths + command prefixes) and logs `warden.block`.
-- `harness/student.py`: `Student(log)` → `.chat(messages, tools)` (baseline) and `.ask(purpose, prompt, schema: type[BaseModel]) -> dict` (validated, re-asked once). Settings per SPEC §1.
-- `harness/state.py`: `State` — pydantic model, JSON-serialisable (routines may run out-of-process).
+`Tools(workdir, manifest|None, log, skill=, deadline=)`: `list_files() -> [str]`, `read_file(path, start, end)
+-> str`, `run_tests(selector=None) -> {passed, failed, errors, ok, exitCode, output, failures[{test, error,
+frames[{file,line,function}]}]}`, `edit_file(path, search, replace) -> {ok, path, error, replacements}`,
+`bash(cmd) -> {ok, exitCode, output}`. `Student(log)`: `.chat(messages, tools)`, `.ask(purpose, prompt, schema)`.
+`State`: pydantic, JSON-serialisable, mapping-style access too.
 
-## 2.4 Routines + registry (owner B; C appends)
+## 2.4 Routines, registries, executors
 ```python
-# routines/<seed|grown>/<name>/routine.py
-NAME = "trace-to-source"
+# <dir>/routine.py
+NAME = "kebab-name"
 def applies(state) -> bool: ...
 def run(state, tools, student) -> state: ...
 ```
-- `routines/registry.json` = ordered list `[{"name","path","source":"seed|grown"}]`. Seeds: `start` first, `ask-student` (fallback) **always last**. Grown routines are inserted immediately before `ask-student`.
-- Each grown routine dir also holds `manifest.json` (Warden) and `SKILL.md`.
-- `Executor` protocol (B defines in-process default; D provides sandboxed): `executor.run(routine_dir: Path, state: State, tools, student, manifest: dict) -> State`.
+Registry JSON = ordered `[{"name", "path", "source": "seed|grown"}]`, `start` first, `ask-student` last, grown
+in between. Paths are repo-relative or absolute. A routine dir may hold `manifest.json` (Warden), `SKILL.md`,
+`proposal.json`. Executor protocol: `run(routine_dir, state, tools, student, manifest) -> State`, optional
+`applies(routine_dir, state, manifest) -> bool`, `describe() -> str`. `warden.sandbox.make_executor(kind, log)`
+with kind `auto | sandbox | inprocess`.
 
-## 2.5 Teacher + growth (owner C)
-- `harness/teacher.py`: `Teacher(log)` → `.propose(context: dict) -> dict` with keys `{name, rationale, trigger_description, routine_py, skill_md, requested_permissions}`; `.summarize_code(src) -> list[str]` (used by Warden). OpenAI client, base `TEACHER_BASE_URL`, model `TEACHER_MODEL`, temp 0, JSON validated, retry once. Emits `model.call` with `role:"teacher"`, `costUsd`.
-- Teacher context is built ONLY from train-split events. A unit test asserts no held-out task id/content appears in any teacher prompt.
+## 2.5 Teacher
+`Teacher(log, budget=…)`: `.propose(context) -> {name, rationale, trigger_description, routine_py, skill_md,
+requested_permissions}` (v1), `.propose_changes(context) -> {rationale, changes[...], order?}` (v2),
+`.summarize_code(src) -> [str]`. Every call: `model.call` (role teacher, tokens, `costUsd`, `peak`) and a
+ledger line in `.manifest/teacher-ledger.jsonl`. Raises `TeacherBudgetExceeded` before a call that the
+budget cannot cover.
 
-## 2.6 Warden (owner D)
+## 2.6 Warden
 ```python
-warden.scan.scan(path: Path, teacher=None) -> list[dict]            # findings [{rule, severity, file, line, detail}]
-warden.manifest.build(skill_dir: Path, requested: dict | None, findings: list) -> dict
-#   -> {skill, read, write, commands, network, findings, verdict: "ok"|"review"|"dangerous"}
-warden.sandbox.SandboxExecutor(log)                                  # implements Executor; macOS sandbox-exec
+warden.scan.scan(path, teacher=None) -> [{rule, severity, file, line, detail}]
+warden.manifest.build(skill_dir, requested, findings) -> {skill, read, write, commands, network, findings, verdict}
+warden.sandbox.SandboxExecutor(log)  # Executor; bwrap (Linux) | sandbox-exec (macOS) | audit-hook fallback
+warden.sandbox.tool_argv(argv, workdir) -> argv   # kernel-sandboxed tool subprocess
 ```
-- Default grown manifest: read `**` (task dir), write `src/**`, commands `["python -m pytest"]`, network `false`. Student calls to `localhost:11434` are the only allowed socket.
-- CLI (`manifest` entry point = `warden/cli.py:main`): `manifest warden audit <dir>`, `manifest skill add <dir> [--force-run]`.

@@ -20,3 +20,11 @@ def seed_registry(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(controller, "DEFAULT_REGISTRY", path)
     monkeypatch.setattr(grow, "REGISTRY", path)
     return path
+
+
+@pytest.fixture(autouse=True)
+def scratch_runs_dir(tmp_path_factory, monkeypatch):
+    """Event logs created during tests (e.g. `manifest warden audit`) go to a temp dir, not .manifest/runs/."""
+    import harness.log as hlog
+
+    monkeypatch.setattr(hlog, "RUNS_DIR", tmp_path_factory.mktemp("runs"))
