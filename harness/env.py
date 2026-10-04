@@ -110,7 +110,8 @@ def code_hash(paths: list[str] = HARNESS_CODE) -> str:
 # Bump when the baseline tool loop / tools / student call behaviour changes in a way that changes results.
 # (Code hashes go into run.start for provenance, but not into cache keys: unrelated edits must not throw away
 # hours of CPU-bound baseline runs.)
-BASELINE_VERSION = 2   # 1 = hackathon (M1, 240 s); 2 = v2 protocol (step/call budget, 1800 s safety cap)
+BASELINE_VERSION = 3   # 1 = hackathon (M1, 240 s); 2 = v2 protocol (step/call budget, 1800 s cap);
+                       # 3 = + tool-argument synonyms (`command` for `cmd`, ...) and errors that name the expected argument
 
 
 def config_key(**parts) -> str:

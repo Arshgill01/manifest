@@ -65,9 +65,39 @@ def _int(v: Any) -> int | None:
         return None
 
 
+# Argument names small models commonly use instead of ours (the hackathon baseline lost whole tasks to
+# `bash({"command": ...})` being read as an empty `cmd`). Fair baselines accept the obvious synonyms.
+ARG_ALIASES = {
+    "bash": {"cmd": ("command", "shell", "script")},
+    "read_file": {"path": ("file_path", "filepath", "file", "filename"), "start": ("start_line", "line_start", "offset"),
+                  "end": ("end_line", "line_end")},
+    "edit_file": {"path": ("file_path", "filepath", "file", "filename"), "search": ("old", "old_string", "old_str", "find", "target"),
+                  "replace": ("new", "new_string", "new_str", "replacement")},
+    "run_tests": {"selector": ("test", "tests", "path", "target", "node", "pattern")},
+}
+REQUIRED = {"bash": ("cmd",), "read_file": ("path",), "edit_file": ("path", "search", "replace")}
+
+
+def normalize_args(name: str, args: dict) -> dict:
+    out = dict(args)
+    for canon, alts in ARG_ALIASES.get(name, {}).items():
+        if out.get(canon) in (None, ""):
+            for a in alts:
+                if out.get(a) not in (None, ""):
+                    out[canon] = out.pop(a)
+                    break
+    return out
+
+
 def dispatch(tools: Tools, name: str, args: dict) -> tuple[str, Any]:
     """Run one student tool call. Returns (text for the student, raw result or None)."""
-    args = args if isinstance(args, dict) else {}
+    args = normalize_args(name, args if isinstance(args, dict) else {})
+    missing = [k for k in REQUIRED.get(name, ()) if k not in args or (k != "replace" and args[k] in (None, ""))]
+    if missing:
+        expected = ", ".join(next(t["function"]["parameters"]["properties"] for t in TOOL_SCHEMAS
+                                  if t["function"]["name"] == name))
+        return (f"ERROR: {name} needs argument(s) {', '.join(repr(m) for m in missing)}; its arguments are: {expected}. "
+                f"You sent: {', '.join(args) or 'nothing'}."), None
     try:
         if name == "list_files":
             r = tools.list_files()

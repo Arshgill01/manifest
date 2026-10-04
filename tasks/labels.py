@@ -24,7 +24,8 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-FORMAT_ERR = re.compile(r"unknown tool|invalid|malformed|not found|no match|did not match|json|schema|missing", re.I)
+FORMAT_ERR = re.compile(r"unknown tool|invalid|malformed|not found|no match|did not match|json|schema|missing|"
+                        r"empty command|needs argument", re.I)
 
 
 def _norm(path: str) -> str:

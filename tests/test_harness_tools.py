@@ -175,3 +175,15 @@ def test_parse_pytest_handles_class_and_param_ids(tmp_path):
     assert r["failures"][0]["test"] == "tests/test_b.py::TestBucket::test_refill[3]"
     assert r["failures"][0]["frames"][-1] == {"file": "src/rk/bucket.py", "line": 12, "function": "take"}
     assert r["failures"][1]["error"] == "assert 1 == 2"
+
+
+def test_dispatch_accepts_common_argument_synonyms_and_names_missing_ones(tmp_path):
+    """A fair baseline: `bash({"command": ...})` is not an empty command (hackathon baseline lost tasks to this)."""
+    from harness.loop import dispatch
+    from harness.tools import Tools
+    (tmp_path / "a.txt").write_text("hello\n")
+    t = Tools(tmp_path)
+    assert "hello" in dispatch(t, "read_file", {"file_path": "a.txt"})[0]
+    assert "exit code 0" in dispatch(t, "bash", {"command": "ls"})[0]
+    msg, raw = dispatch(t, "bash", {"script_name": "x"})
+    assert raw is None and "needs argument(s) 'cmd'" in msg and "script_name" in msg
