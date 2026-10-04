@@ -30,7 +30,7 @@ class Inventory:
         return self._on_hand.get((sku, location), 0)
 
     def locations(self, sku: str) -> list[str]:
-        return sorted(loc for (s, loc), q in self._on_hand.items() if s == sku and q >= 0)
+        return sorted(loc for (s, loc), q in self._on_hand.items() if s == sku and q > 0)
 
     def receive(self, sku: str, qty: int, location: str = "MAIN") -> None:
         self.catalog.get(sku)

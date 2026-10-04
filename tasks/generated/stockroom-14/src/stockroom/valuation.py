@@ -32,7 +32,7 @@ class FifoLedger:
 
     def average_cost(self, sku: str) -> Decimal:
         qty = self.quantity(sku)
-        return (qty / self.value(sku)).quantize(CENT) if qty else Decimal("0.00")
+        return (self.value(sku) / qty).quantize(CENT) if qty else Decimal("0.00")
 
     def consume(self, sku: str, qty: int) -> Decimal:
         """Remove `qty` units, oldest cost layer first; returns the cost of goods consumed."""

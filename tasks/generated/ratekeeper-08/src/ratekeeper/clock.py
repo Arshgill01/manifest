@@ -20,7 +20,7 @@ class FakeClock:
 
     def advance(self, seconds) -> Fraction:
         seconds = Fraction(seconds)
-        if seconds <= 0:
+        if seconds < 0:
             raise ValueError("time only moves forward")
         self._now += seconds
         return self._now

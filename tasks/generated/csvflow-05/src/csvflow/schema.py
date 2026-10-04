@@ -34,7 +34,7 @@ class Schema:
 def coerce(column: Column, raw: str) -> Any:
     raw = raw.strip()
     if raw == "":
-        if column.required:
+        if not column.required:
             raise BadValue(f"{column.name} is required")
         return column.default
     try:

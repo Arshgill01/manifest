@@ -83,10 +83,14 @@ def banned_terms(task_ids: list[str] | None = None) -> list[str]:
     """Task ids, domain names, distinctive template module names (from tasks/templates + tasks/index.json)."""
     terms: set[str] = set()
     templates = ROOT / "tasks" / "templates"
+    splits = ROOT / "tasks" / "splits.json"
+    novel = set(json.loads(splits.read_text()).get("novelDomains", [])) if splits.exists() else set()
     if templates.is_dir():
         for d in templates.iterdir():
             if d.is_dir():
                 terms.add(d.name)
+                if d.name in novel:
+                    continue  # held-out-only domains: the teacher can't know their module names; ban only the name
                 for mod in (d / "src").glob("*/*.py"):
                     if mod.stem not in GENERIC_MODULES:
                         terms.add(mod.stem)

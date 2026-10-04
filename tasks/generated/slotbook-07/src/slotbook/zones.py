@@ -25,7 +25,7 @@ def at(name: str, y: int, mo: int, d: int, h: int = 0, mi: int = 0) -> datetime:
 
 
 def to_zone(moment: datetime, name: str) -> datetime:
-    return moment.replace(tzinfo=zone(name))
+    return moment.astimezone(zone(name))
 
 
 def local_day(name: str, day: date) -> TimeRange:

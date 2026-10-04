@@ -18,7 +18,7 @@ class TokenBucket:
     def _refill(self) -> None:
         now = self.clock.now()
         elapsed = max(0, now - self.updated)
-        self.tokens = max(Fraction(self.capacity), self.tokens + elapsed * self.rate)
+        self.tokens = min(Fraction(self.capacity), self.tokens + elapsed * self.rate)
         self.updated = now
 
     def available(self) -> Fraction:
@@ -29,7 +29,7 @@ class TokenBucket:
         if n > self.capacity:
             raise ValueError(f"cannot take {n} tokens from a bucket of {self.capacity}")
         self._refill()
-        if self.tokens >= n:
+        if self.tokens > n:
             self.tokens -= n
             return True
         return False

@@ -52,4 +52,70 @@ def test_v2_profile_extends_full_and_never_mixes_splits():
         assert v2[s] == full[s] + new[s]
     seen = [t for s in ("train", "gate", "heldout") for t in v2[s]]
     assert len(seen) == len(set(seen))
-    assert all(t.startswith("csvflow") is False for t in v2["train"] + v2["gate"])   # novel domain held-out only
+    assert not any(t.startswith(("csvflow", "gradebook")) for t in v2["train"] + v2["gate"])   # held-out-only domains
+
+
+# Suite v2 as first used for experiments (2026-10-05, incl. the gradebook domain). Append-only from here on.
+V2 = {
+    "csvflow-03": "missing-cols",
+    "csvflow-04": "blank-any",
+    "csvflow-05": "required-invert",
+    "csvflow-06": "median-even",
+    "csvflow-07": "header-lower",
+    "csvflow-08": "bool-false",
+    "gradebook-01": "points-return",
+    "gradebook-02": "band-boundary",
+    "gradebook-03": "late-sign",
+    "gradebook-04": "percent-guard",
+    "gradebook-05": "curve-cap",
+    "gradebook-06": "reweight-missing",
+    "gradebook-07": "shift-cap",
+    "gradebook-08": "late-cutoff",
+    "gradebook-09": "negative-weight-guard",
+    "gradebook-10": "ignore-drop",
+    "gradebook-11": "gpa-by-count",
+    "gradebook-12": "percent-rounding",
+    "ledgerly-09": "overpay-guard",
+    "ledgerly-10": "days-late-swap",
+    "ledgerly-11": "inclusive-split",
+    "ledgerly-12": "rate-inverse",
+    "ledgerly-13": "exclusive-filter",
+    "ledgerly-14": "aging-boundary",
+    "ratekeeper-07": "rate-fraction",
+    "ratekeeper-08": "quota-guard",
+    "ratekeeper-09": "take-boundary",
+    "ratekeeper-10": "quota-check",
+    "ratekeeper-11": "elapsed-swap",
+    "ratekeeper-12": "advance-guard",
+    "ratekeeper-13": "fixed-allow",
+    "ratekeeper-14": "limit-header",
+    "ratekeeper-15": "refill-cap",
+    "slotbook-07": "fits-capacity",
+    "slotbook-08": "intersection-swap",
+    "slotbook-09": "merge-touching",
+    "slotbook-10": "minutes-unit",
+    "slotbook-11": "free-min",
+    "slotbook-12": "capacity-guard",
+    "slotbook-13": "room-order",
+    "slotbook-14": "contains-end",
+    "slotbook-15": "to-zone-replace",
+    "stockroom-07": "pack-guard",
+    "stockroom-08": "average-swap",
+    "stockroom-09": "locations-zero",
+    "stockroom-10": "expire-boundary",
+    "stockroom-11": "report-sort",
+    "stockroom-12": "pick-take",
+    "stockroom-13": "consume-guard",
+    "stockroom-14": "available-sign",
+    "stockroom-15": "shortfall-term",
+    "stockroom-16": "ship-guard"
+}
+V2NEW = {"train": ["ledgerly-09", "ledgerly-10", "ledgerly-11", "ledgerly-13", "ratekeeper-08", "ratekeeper-13", "slotbook-07", "slotbook-08", "slotbook-09", "slotbook-10", "stockroom-07", "stockroom-09", "stockroom-11", "stockroom-14"], "gate": ["ledgerly-14", "ratekeeper-07", "ratekeeper-11", "ratekeeper-12", "slotbook-15", "stockroom-08", "stockroom-10", "stockroom-12"], "heldout": ["csvflow-03", "csvflow-04", "csvflow-05", "csvflow-06", "csvflow-07", "csvflow-08", "gradebook-01", "gradebook-02", "gradebook-03", "gradebook-04", "gradebook-05", "gradebook-06", "gradebook-07", "gradebook-08", "gradebook-09", "gradebook-10", "gradebook-11", "gradebook-12", "ledgerly-12", "ratekeeper-09", "ratekeeper-10", "ratekeeper-14", "ratekeeper-15", "slotbook-11", "slotbook-12", "slotbook-13", "slotbook-14", "stockroom-13", "stockroom-15", "stockroom-16"]}
+
+
+def test_v2_ids_and_splits_are_frozen():
+    index = json.loads((ROOT / "tasks" / "index.json").read_text())
+    splits = json.loads((ROOT / "tasks" / "splits.json").read_text())["profiles"]
+    assert {t: index[t]["mutationKey"] for t in V2} == V2
+    for s in ("train", "gate", "heldout"):
+        assert splits["v2new"][s][: len(V2NEW[s])] == V2NEW[s]

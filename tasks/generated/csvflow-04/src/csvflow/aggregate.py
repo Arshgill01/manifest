@@ -19,7 +19,7 @@ def median(values: list[float]) -> float:
     mid = len(ordered) // 2
     if len(ordered) % 2:
         return ordered[mid]
-    return (ordered[mid] + ordered[mid + 1]) / 2
+    return (ordered[mid - 1] + ordered[mid]) / 2
 
 
 def summarize(rows: list[dict], by: str, field: str) -> dict[Any, dict[str, float]]:

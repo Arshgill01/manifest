@@ -37,7 +37,7 @@ def lookup(code: str) -> TaxRate:
 
 def split_inclusive(gross: Money, rate: TaxRate) -> tuple[Money, Money]:
     """Split a tax-inclusive price into (net, tax)."""
-    net = Money(gross.amount / (1 + rate.rate), gross.currency)
+    net = Money(gross.amount * (1 - rate.rate), gross.currency)
     return net, gross - net
 
 

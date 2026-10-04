@@ -59,7 +59,7 @@ class Ledger:
         return "partial" if not self.paid(number).is_zero() else "open"
 
     def days_late(self, number: str, today: date) -> int:
-        return max(0, (today - self.invoices[number].due_date()).days)
+        return max(0, (self.invoices[number].due_date() - today).days)
 
     def aging(self, today: date) -> dict[str, Money]:
         """Outstanding balances grouped by how many days past due they are."""

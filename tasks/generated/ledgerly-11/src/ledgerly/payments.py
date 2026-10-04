@@ -70,7 +70,7 @@ class Ledger:
                 continue
             late = self.days_late(number, today)
             for name, limit in AGING_BUCKETS:
-                if limit is None or late < limit:
+                if limit is None or late <= limit:
                     buckets[name] = buckets[name] + owed
                     break
         return buckets

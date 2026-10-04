@@ -10,3 +10,4 @@ gui/dist/
 .manifest/work/
 .manifest/cache/*.tmp
 .manifest/logs/
+tasks/generated.staging/

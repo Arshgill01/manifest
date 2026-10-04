@@ -12,6 +12,7 @@ import dataclasses
 from tasks.mutations import Edit, _m
 
 L, S, B, R, C = "src/ledgerly/", "src/stockroom/", "src/slotbook/", "src/ratekeeper/", "src/csvflow/"
+G = "src/gradebook/"   # second held-out-only domain (template added in v2; never in train/gate)
 
 
 def guard_trap(file: str, mutated_guard: str, raise_line: str) -> list[Edit]:
@@ -176,6 +177,39 @@ CANDIDATES = [
      "    return [row for row in rows if predicate(row)]\n", "    return [row for row in rows if not predicate(row)]\n", ()),
     ("mean-denominator", "csvflow", "summarize", "off-by-one", C + "aggregate.py",
      "            \"mean\": round(total / len(values), 2),\n", "            \"mean\": round(total / (len(values) - 1), 2),\n", ()),
+    # ---------------- gradebook (held-out only, new template)
+    ("band-boundary", "gradebook", "band_for", "wrong-comparison", G + "scale.py",
+     "        if percent >= band.minimum:\n", "        if percent > band.minimum:\n", ()),
+    ("reweight-missing", "gradebook", "weighted_average", "wrong-variable", G + "weights.py",
+     "    norm = normalize(present)\n", "    norm = normalize(weights)\n", ()),
+    ("late-cutoff", "gradebook", "Score.percent", "off-by-one", G + "scores.py",
+     "        if self.days_late > MAX_LATE_DAYS:\n", "        if self.days_late >= MAX_LATE_DAYS:\n", ()),
+    ("drop-keeps-one", "gradebook", "drop_lowest", "wrong-default", G + "scores.py",
+     "    keep = max(1, len(scores) - n)\n", "    keep = max(0, len(scores) - n)\n", ()),
+    ("gpa-by-count", "gradebook", "Transcript.gpa", "wrong-variable", G + "transcript.py",
+     "        total = self.credits()\n        if total == 0:\n            return 0.0\n        return round(sum(points(e.letter) * e.credits for e in self.entries) / total, 2)\n",
+     "        total = self.credits()\n        if total == 0:\n            return 0.0\n        return round(sum(points(e.letter) * e.credits for e in self.entries) / len(self.entries), 2)\n", ()),
+    ("points-return", "gradebook", "points", "missing-return", G + "scale.py",
+     "            return band.points\n", "            band.points\n", ()),
+    ("shift-cap", "gradebook", "shift_needed", "wrong-comparison", G + "curve.py",
+     "    return min(MAX_SHIFT, max(0.0, gap))\n", "    return max(MAX_SHIFT, max(0.0, gap))\n", ()),
+    ("percent-guard", "gradebook", "band_for", "off-by-one", G + "scale.py",
+     "    if not 0 <= percent <= 100:\n", "    if not 0 <= percent < 100:\n",
+     guard_trap(G + "scale.py", "    if not 0 <= percent < 100:\n", "        raise ScaleError(f\"percent out of range: {percent}\")\n")),
+    ("negative-weight-guard", "gradebook", "normalize", "wrong-comparison", G + "weights.py",
+     "    if any(w < 0 for w in weights.values()):\n", "    if any(w <= 0 for w in weights.values()):\n",
+     guard_trap(G + "weights.py", "    if any(w <= 0 for w in weights.values()):\n", "        raise WeightError(\"weights cannot be negative\")\n")),
+    ("late-sign", "gradebook", "Score.percent", "inverted-sign", G + "scores.py",
+     "        return max(0.0, self.raw_percent() - LATE_PENALTY_PER_DAY * self.days_late)\n",
+     "        return max(0.0, self.raw_percent() + LATE_PENALTY_PER_DAY * self.days_late)\n", ()),
+    ("ignore-drop", "gradebook", "Course.category_percent", "wrong-argument", G + "course.py",
+     "        return mean_percent(drop_lowest(scores, self.categories[category].drop))\n",
+     "        return mean_percent(drop_lowest(scores, 0))\n", ()),
+    ("percent-rounding", "gradebook", "Course.percent", "wrong-constant", G + "course.py",
+     "        return round(weighted_average(values, weights), 2)\n", "        return round(weighted_average(values, weights), 1)\n", ()),
+    ("curve-cap", "gradebook", "curved", "wrong-comparison", G + "curve.py",
+     "    return {s: min(100.0, round(p + shift, 2)) for s, p in finals.items()}\n",
+     "    return {s: max(100.0, round(p + shift, 2)) for s, p in finals.items()}\n", ()),
 ]
 
 ALL_SHAPES = "deep-call-chain one-root-many misleading-surface local"
@@ -223,6 +257,18 @@ VERIFIED: dict[str, str] = {
     'required-invert': 'one-root-many',
     'bool-false': 'local',
     'missing-cols': 'one-root-many',
+    'band-boundary': 'local',
+    'reweight-missing': 'deep-call-chain',
+    'late-cutoff': 'local',
+    'gpa-by-count': 'one-root-many local',
+    'points-return': 'one-root-many',
+    'shift-cap': 'local',
+    'percent-guard': 'regression-trap local',
+    'negative-weight-guard': 'regression-trap local',
+    'late-sign': 'one-root-many',
+    'ignore-drop': 'local',
+    'percent-rounding': 'local',
+    'curve-cap': 'local',
 }
 
 

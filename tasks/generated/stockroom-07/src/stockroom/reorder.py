@@ -26,7 +26,7 @@ def suggested_order(product: Product, pos: int) -> int:
     """Order enough to get back to reorder point + reorder qty, in whole packs."""
     if not needs_reorder(product, pos):
         return 0
-    shortfall = product.reorder_qty - pos
+    shortfall = product.reorder_point + product.reorder_qty - pos
     return round_to_pack(shortfall, product.pack_size)
 
 

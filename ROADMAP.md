@@ -34,7 +34,7 @@ Tick as you go; each checkpoint is a commit. Experiments E1–E8 are defined in 
 
 ## Phase 3: confidence
 - [x] Grow the task suite: 40 more verified bugs, append-only (suite v2, 68 tasks)
-- [ ] One more held-out-only domain (new template)
+- [x] One more held-out-only domain: `gradebook` template + 12 verified bugs (80 tasks; v2 held-out = 38)
 - [ ] Baseline on the v2 tasks
 - [ ] E6 ablations: no-gate, window-1, no-fn-trace
 - [ ] E7 budget sensitivity (baseline at 24 steps)

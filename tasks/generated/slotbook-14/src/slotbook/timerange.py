@@ -30,7 +30,7 @@ class TimeRange:
         return int(self.duration.total_seconds() // 60)
 
     def contains(self, moment: datetime) -> bool:
-        return self.start <= moment < self.end
+        return self.start <= moment <= self.end
 
     def overlaps(self, other: "TimeRange") -> bool:
         return self.start < other.end and other.start < self.end

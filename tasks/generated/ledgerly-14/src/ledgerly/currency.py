@@ -24,7 +24,7 @@ def rate(source: str, target: str) -> Decimal:
     if (source, target) in RATES:
         return RATES[(source, target)]
     if (target, source) in RATES:
-        return RATES[(target, source)]
+        return 1 / RATES[(target, source)]
     raise NoRate(f"no rate {source}->{target}")
 
 

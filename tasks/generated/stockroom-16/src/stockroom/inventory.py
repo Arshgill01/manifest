@@ -40,7 +40,7 @@ class Inventory:
     def ship(self, sku: str, qty: int, location: str = "MAIN") -> None:
         _positive(qty)
         have = self.on_hand(sku, location)
-        if qty > have:
+        if qty >= have:
             raise InsufficientStock(f"{sku}@{location}: need {qty}, have {have}")
         self._on_hand[(sku, location)] -= qty
         self.history.append(("ship", sku, location, -qty))

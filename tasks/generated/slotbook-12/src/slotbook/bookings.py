@@ -50,7 +50,7 @@ class Calendar:
 
     def check(self, room_name: str, when: TimeRange, attendees: int) -> Room:
         room = self.directory.get(room_name)
-        if attendees > room.capacity:
+        if attendees >= room.capacity:
             raise OverCapacity(f"{room_name} holds {room.capacity}, asked for {attendees}")
         local_day = to_zone(when.start, room.zone).date()
         hours = opening_hours(room, local_day)

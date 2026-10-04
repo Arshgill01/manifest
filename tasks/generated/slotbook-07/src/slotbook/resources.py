@@ -46,5 +46,5 @@ class Directory:
 
     def rooms_with_capacity(self, people: int) -> list[Room]:
         """Rooms that fit `people`, smallest first."""
-        fits = [r for r in self._rooms.values() if r.capacity >= people]
+        fits = [r for r in self._rooms.values() if r.capacity > people]
         return sorted(fits, key=lambda r: (r.capacity, r.name))

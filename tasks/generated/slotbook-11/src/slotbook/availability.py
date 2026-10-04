@@ -14,7 +14,7 @@ def free_slots(calendar: Calendar, room_name: str, day: date, minutes: int) -> l
     room = calendar.directory.get(room_name)
     hours = opening_hours(room, day)
     busy = [b.when for b in calendar.bookings_for(room_name, hours)]
-    return [g for g in gaps(hours, busy) if g.minutes() >= minutes]
+    return [g for g in gaps(hours, busy) if g.minutes() > minutes]
 
 
 def find_slot(calendar: Calendar, day: date, minutes: int, attendees: int) -> tuple[str, TimeRange] | None:

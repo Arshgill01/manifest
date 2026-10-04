@@ -36,7 +36,7 @@ class TimeRange:
         return self.start < other.end and other.start < self.end
 
     def intersection(self, other: "TimeRange") -> "TimeRange | None":
-        start, end = min(self.start, other.start), max(self.end, other.end)
+        start, end = max(self.start, other.start), min(self.end, other.end)
         return TimeRange(start, end) if start < end else None
 
     def shift(self, delta: timedelta) -> "TimeRange":

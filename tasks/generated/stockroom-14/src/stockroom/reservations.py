@@ -35,7 +35,7 @@ class ReservationBook:
         return sum(r.qty for r in self._active.values() if r.sku == sku)
 
     def available(self, sku: str) -> int:
-        return self.inventory.on_hand(sku) - self.reserved(sku)
+        return self.inventory.on_hand(sku) + self.reserved(sku)
 
     def expire(self, now: datetime) -> list[str]:
         """Drop reservations whose time is up; returns their ids."""

@@ -52,7 +52,7 @@ class DailyQuota:
         return max(0, self.limit - self.used_today())
 
     def consume(self, n: int = 1) -> None:
-        if n > self.remaining():
+        if n >= self.remaining():
             raise QuotaExceeded(f"daily quota of {self.limit} exhausted")
         day = self._day()
         self.used[day] = self.used.get(day, 0) + n

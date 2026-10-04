@@ -47,7 +47,7 @@ def merge(ranges: Iterable[TimeRange]) -> list[TimeRange]:
     """Union of ranges; touching ranges are joined."""
     merged: list[TimeRange] = []
     for r in sorted(ranges):
-        if merged and r.start < merged[-1].end:
+        if merged and r.start <= merged[-1].end:
             merged[-1] = TimeRange(merged[-1].start, max(merged[-1].end, r.end))
         else:
             merged.append(r)

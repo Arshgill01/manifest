@@ -27,7 +27,7 @@ class TimeRange:
         return self.end - self.start
 
     def minutes(self) -> int:
-        return int(self.duration.total_seconds() // 60)
+        return int(self.duration.total_seconds() % 60)
 
     def contains(self, moment: datetime) -> bool:
         return self.start <= moment < self.end

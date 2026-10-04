@@ -29,7 +29,7 @@ class TokenBucket:
         if n > self.capacity:
             raise ValueError(f"cannot take {n} tokens from a bucket of {self.capacity}")
         self._refill()
-        if self.tokens > n:
+        if self.tokens >= n:
             self.tokens -= n
             return True
         return False

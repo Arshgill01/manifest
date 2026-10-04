@@ -13,7 +13,7 @@ class RowError(ValueError):
 
 
 def normalize_header(name: str) -> str:
-    return "_".join(name.strip().lower().split())
+    return "_".join(name.strip().split())
 
 
 def read_rows(text: str, delimiter: str = ",") -> list[dict]:

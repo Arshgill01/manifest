@@ -211,10 +211,10 @@ def build_teacher_context(round: int, entries: list[dict], traces: list[dict], h
 def banned_terms(splits: dict) -> list[str]:
     """Strings that must never reach the teacher: every held-out task id and the held-out-only domain."""
     terms = sorted(set(splits.get("heldout", [])) | set(splits.get("heldoutAll", [])))
-    novel = splits.get("novelDomain")
     seen = " ".join(splits.get("train", []) + splits.get("gate", []))
-    if novel and novel not in seen:
-        terms.append(novel)
+    for novel in {splits.get("novelDomain"), *splits.get("novelDomains", [])} - {None}:
+        if novel not in seen:
+            terms.append(novel)
     return terms
 
 
@@ -332,7 +332,8 @@ def load_splits(stub: bool, profile: str = "core") -> dict:
             return data
         # every held-out id of every profile stays banned from the teacher, not just this profile's
         held_all = sorted(set(data.get("heldout", [])).union(*(p.get("heldout", []) for p in data.get("profiles", {}).values())))
-        return {**chosen, "novelDomain": data.get("novelDomain"), "heldoutAll": held_all}
+        return {**chosen, "novelDomain": data.get("novelDomain"), "novelDomains": data.get("novelDomains", []),
+                "heldoutAll": held_all}
     if stub:
         return dict(stubs.STUB_SPLITS)
     raise SystemExit(f"{rel(SPLITS)} missing; merge track A or pass --stub-runner")

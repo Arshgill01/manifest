@@ -25,7 +25,7 @@ class RateLimiter:
 
     def _state(self, key: str, plan: Plan) -> tuple[TokenBucket, DailyQuota]:
         if key not in self._buckets:
-            self._buckets[key] = TokenBucket(plan.burst, Fraction(60, plan.per_minute), self.clock)
+            self._buckets[key] = TokenBucket(plan.burst, Fraction(plan.per_minute, 60), self.clock)
             self._quotas[key] = DailyQuota(plan.per_day, self.clock)
         return self._buckets[key], self._quotas[key]
 

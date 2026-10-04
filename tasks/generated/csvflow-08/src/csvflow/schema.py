@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 TRUE = {"true", "yes", "y", "1"}
-FALSE = {"false", "no", "n", "0"}
+FALSE = {"false", "no", "n"}
 
 
 class BadValue(ValueError):
@@ -34,7 +34,7 @@ class Schema:
 def coerce(column: Column, raw: str) -> Any:
     raw = raw.strip()
     if raw == "":
-        if not column.required:
+        if column.required:
             raise BadValue(f"{column.name} is required")
         return column.default
     try:

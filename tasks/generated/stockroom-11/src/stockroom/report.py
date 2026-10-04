@@ -31,7 +31,7 @@ def reorder_report(catalog: Catalog, book: ReservationBook, today: date,
         qty = suggested_order(product, pos)
         if qty:
             lines.append(ReorderLine(sku, book.available(sku), qty, expected_arrival(product, today)))
-    return sorted(lines, key=lambda line: (line.arrives, line.sku))
+    return sorted(lines, key=lambda line: (line.sku, line.arrives))
 
 
 def stock_value_report(catalog: Catalog, fifo: FifoLedger) -> dict[str, Decimal]:

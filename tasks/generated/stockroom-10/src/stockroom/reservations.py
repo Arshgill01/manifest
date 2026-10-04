@@ -39,7 +39,7 @@ class ReservationBook:
 
     def expire(self, now: datetime) -> list[str]:
         """Drop reservations whose time is up; returns their ids."""
-        expired = [rid for rid, r in self._active.items() if r.expires_at <= now]
+        expired = [rid for rid, r in self._active.items() if r.expires_at < now]
         for rid in expired:
             del self._active[rid]
         return expired

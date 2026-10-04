@@ -87,15 +87,15 @@ docs/history/ hackathon SPEC / CONTRACT / SPECLIST / CLAUDE.md
 ### 3.1 Suite
 Generated, deterministic (seed 1337) multi-module Python services; each task = one package + pytest suite +
 exactly one injected root-cause bug + `TASK.md` ("The test suite is failing. Make it pass without editing
-tests."). Domains: `ledgerly`, `stockroom`, `slotbook`, `ratekeeper`, `csvflow` (held-out only). Bug shapes
+tests."). Domains: `ledgerly`, `stockroom`, `slotbook`, `ratekeeper`, and two held-out-only domains the
+teacher never sees: `csvflow` and `gradebook` (added in v2). Bug shapes
 (mechanically verified by `tasks.gen`): deep call chain, one root / many failures, regression trap,
 misleading surface. Root-cause metadata lives only in `tasks/index.json`.
 
 ### 3.2 Splits
-`tasks/splits.json` profiles: `full` (train 12 / gate 6 / held-out 8 incl. 2 novel-domain), `core`
-(3/3/3), `demo`. **ROADMAP:** grow the suite (more verified mutations per template, one more held-out-only
-domain) so held-out CIs tighten; new tasks are appended to splits, never reshuffled, so earlier per-task
-results stay valid.
+`tasks/splits.json` profiles: `full` (train 12 / gate 6 / held-out 8, the v1 suite), **`v2` (train 26 / gate 14 /
+held-out 38, of which 20 are held-out-only domains)**, `v2new` (only the v2 additions), `core` (3/3/3), `demo`.
+The suite is append-only: ids, files and splits of existing tasks never change (pinned by a test).
 
 ### 3.3 Budget (identical for every harness)
 - **12 steps** per task (baseline: model turns; controller: routine runs) and **24 student calls**.
@@ -193,7 +193,8 @@ Output JSON:
 
 ### 5.5 Hyperparameters (defaults; paper values in brackets)
 K = 4 [8 / 4], R_max = 3 [5], Q = 1 [repair threshold], L = 10 [10], candidates/step = 1 [1],
-budget per task as §3.3 [50 calls, 900–1800 s]. Train stream = `full` train (12), gate = `full` gate (6).
+budget per task as §3.3 [50 calls, 900–1800 s]. Growth run #1: train stream = `v2` train (26), gate = `v2` gate (14),
+held-out = `v2` held-out (38).
 
 ### 5.6 Ablations (`--ablate`)
 `no-gate` (accept on repairs alone), `window-1` (K = 1), `no-fn-trace` (traces without `fn.*` events and

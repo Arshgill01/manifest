@@ -59,7 +59,7 @@ class Inventory:
         picks = []
         remaining = qty
         for loc in locations:
-            take = min(self.on_hand(sku, loc), remaining)
+            take = max(self.on_hand(sku, loc), remaining)
             if take:
                 self.ship(sku, take, loc)
                 picks.append((loc, take))

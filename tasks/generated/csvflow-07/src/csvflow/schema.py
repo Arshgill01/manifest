@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 TRUE = {"true", "yes", "y", "1"}
-FALSE = {"false", "no", "n"}
+FALSE = {"false", "no", "n", "0"}
 
 
 class BadValue(ValueError):

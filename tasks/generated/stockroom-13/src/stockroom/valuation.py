@@ -36,7 +36,7 @@ class FifoLedger:
 
     def consume(self, sku: str, qty: int) -> Decimal:
         """Remove `qty` units, oldest cost layer first; returns the cost of goods consumed."""
-        if qty > self.quantity(sku):
+        if qty >= self.quantity(sku):
             raise InsufficientStock(f"{sku}: cannot consume {qty}")
         layers = self.layers[sku]
         cost = Decimal(0)

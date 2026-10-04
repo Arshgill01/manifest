@@ -11,7 +11,7 @@ from .quota import get_plan
 def rate_limit_headers(decision: Decision, plan_name: str) -> dict[str, str]:
     plan = get_plan(plan_name)
     headers = {
-        "X-RateLimit-Limit": str(plan.burst),
+        "X-RateLimit-Limit": str(plan.per_minute),
         "X-RateLimit-Remaining-Day": str(decision.remaining_today),
     }
     if not decision.allowed:

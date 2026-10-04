@@ -17,7 +17,7 @@ class TokenBucket:
 
     def _refill(self) -> None:
         now = self.clock.now()
-        elapsed = max(0, now - self.updated)
+        elapsed = max(0, self.updated - now)
         self.tokens = min(Fraction(self.capacity), self.tokens + elapsed * self.rate)
         self.updated = now
 

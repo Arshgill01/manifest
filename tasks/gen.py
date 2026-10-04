@@ -50,6 +50,7 @@ PROFILES = {
     "core": {"train": 3, "gate": 3, "heldout": 3},
 }
 NOVEL_DOMAIN = "csvflow"   # appears only in held-out
+NOVEL_DOMAINS = (NOVEL_DOMAIN, "gradebook")   # suite v2 adds a second held-out-only domain
 SHAPES = ("deep-call-chain", "one-root-many", "regression-trap", "misleading-surface")
 
 
@@ -299,21 +300,22 @@ V2_SHAPE_ORDER = ("regression-trap", "deep-call-chain", "misleading-surface", "o
 def assign_v2(built: list[Built], per_domain: dict[str, int], ids: dict[str, str]) -> tuple[dict[str, str], dict[str, list[str]]]:
     """Append-only: v2 tasks take the next free number in their domain (after v1 + demo tasks) and are dealt
     into splits stratified by primary shape; the novel domain stays held-out. v1 ids/splits never move."""
-    rng = random.Random(SEED + 2)
+    # One RNG per domain (and one for dealing), so adding a domain or a mutation elsewhere never renumbers a task.
+    rng = random.Random(f"{SEED}:v2:deal")
     by_domain: dict[str, list[Built]] = {}
     for b in built:
         by_domain.setdefault(b.mutation.domain, []).append(b)
     new_ids: dict[str, str] = {}
     for domain in sorted(by_domain):
         items = sorted(by_domain[domain], key=lambda b: b.mutation.key)
-        rng.shuffle(items)
+        random.Random(f"{SEED}:v2:ids:{domain}").shuffle(items)
         for b in items:
             per_domain[domain] = per_domain.get(domain, 0) + 1
             new_ids[b.mutation.key] = ids[b.mutation.key] = f"{domain}-{per_domain[domain]:02d}"
     splits: dict[str, list[str]] = {"train": [], "gate": [], "heldout": []}
     pool = []
     for b in built:
-        if b.mutation.domain == NOVEL_DOMAIN:
+        if b.mutation.domain in NOVEL_DOMAINS:
             splits["heldout"].append(new_ids[b.mutation.key])
         else:
             pool.append(b)
@@ -350,6 +352,12 @@ def core_profile(splits: dict[str, list[str]], index: dict[str, dict]) -> dict[s
     held += [t for t in splits["heldout"] if t not in held]
     core["heldout"] = held[: want["heldout"]]
     return core
+
+
+def _same_tree(a: Path, b: Path) -> bool:
+    fa = sorted(p.relative_to(a).as_posix() for p in a.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+    fb = sorted(p.relative_to(b).as_posix() for p in b.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+    return fa == fb and all((a / f).read_bytes() == (b / f).read_bytes() for f in fa)
 
 
 # ---------------------------------------------------------------- main
@@ -415,13 +423,16 @@ def main(argv: list[str] | None = None) -> int:
     split_of.update({tid: "demo" for tid in demo_ids})
     split_of.update({tid: s for s, tids in v2_splits.items() for tid in tids})
     index: dict[str, dict] = {}
-    if GENERATED.exists():
-        shutil.rmtree(GENERATED)
-    GENERATED.mkdir(parents=True)
+    # Sync, don't wipe: build into a staging dir and only replace task dirs whose content changed, so a run that is
+    # reading tasks/generated/ (copying pristine tasks, judging against them) never sees a missing directory.
+    staging = GENERATED.parent / "generated.staging"
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
     v1_keys = {b.mutation.key for b in built + demo_built}
     for b in sorted(built + demo_built + v2_built, key=lambda b: ids[b.mutation.key]):
         tid = ids[b.mutation.key]
-        dest = GENERATED / tid
+        dest = staging / tid
         copy_template(b.mutation.domain, dest)
         apply_edits(dest, b.mutation.edits)
         index[tid] = {
@@ -442,6 +453,21 @@ def main(argv: list[str] | None = None) -> int:
             "note": b.mutation.note,
             "suite": "v1" if b.mutation.key in v1_keys else "v2",
         }
+    GENERATED.mkdir(parents=True, exist_ok=True)
+    changed = 0
+    for d in sorted(staging.iterdir()):
+        target = GENERATED / d.name
+        if target.exists() and _same_tree(d, target):
+            continue
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.move(str(d), target)
+        changed += 1
+    for old in GENERATED.iterdir():
+        if old.is_dir() and old.name not in index:
+            shutil.rmtree(old)
+    shutil.rmtree(staging)
+    print(f"synced tasks/generated: {changed} task dir(s) written or replaced")
     profiles = {"full": splits, "core": core_profile(splits, index)}
     hero = [t for t, m in index.items() if m["demo"] and m["split"] == "heldout"]
     # live demo: none of these were ever seen by the teacher (hero = scored held-out task, rest = demo-only)
@@ -450,7 +476,8 @@ def main(argv: list[str] | None = None) -> int:
     profiles["v2"] = {s: splits[s] + v2_splits[s] for s in ("train", "gate", "heldout")}
     profiles["v2new"] = v2_splits
     (ROOT / "splits.json").write_text(json.dumps(
-        {"seed": SEED, "novelDomain": NOVEL_DOMAIN, **splits, "profiles": profiles}, indent=2) + "\n")
+        {"seed": SEED, "novelDomain": NOVEL_DOMAIN, "novelDomains": list(NOVEL_DOMAINS), **splits, "profiles": profiles},
+        indent=2) + "\n")
     (ROOT / "index.json").write_text(json.dumps(index, indent=2) + "\n")
     print(f"\nwrote {len(index)} tasks → {GENERATED.relative_to(ROOT.parent)}")
     for name, prof in profiles.items():

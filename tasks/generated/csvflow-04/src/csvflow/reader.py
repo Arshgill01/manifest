@@ -27,7 +27,7 @@ def read_rows(text: str, delimiter: str = ",") -> list[dict]:
         raise ValueError(f"duplicate column names: {names}")
     rows = []
     for line, fields in enumerate(reader, start=2):
-        if not fields or all(not f.strip() for f in fields):
+        if not fields or any(not f.strip() for f in fields):
             continue
         if len(fields) != len(names):
             raise RowError(line, f"expected {len(names)} fields, got {len(fields)}")

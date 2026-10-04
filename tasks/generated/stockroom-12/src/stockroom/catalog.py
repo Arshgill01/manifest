@@ -26,7 +26,7 @@ class Catalog:
             self.add(product)
 
     def add(self, product: Product) -> None:
-        if product.pack_size <= 1:
+        if product.pack_size < 1:
             raise ValueError(f"{product.sku}: pack size must be at least 1")
         if product.sku in self._products:
             raise ValueError(f"duplicate sku {product.sku}")
