@@ -9,26 +9,33 @@ Tick as you go; each checkpoint is a commit. Experiments E1–E8 are defined in 
 - [x] Function-level trace (`fn.call` / `fn.return`)
 - [x] v2 budget: 12 steps / 24 calls binding, 1800 s safety cap; per-task resumable round-0 cache; host provenance
 - [x] SPEC v2, CONTRACT v2, CLAUDE.md; hackathon docs archived
-- [ ] Teacher: current DeepSeek prices with peak/off-peak, persistent spend ledger, hard caps, off-peak waiting
+- [x] Teacher: current DeepSeek prices with peak/off-peak, persistent spend ledger, hard caps, off-peak waiting
+
+- [x] Baseline fairness: tool-argument synonyms + informative errors (BASELINE_VERSION 3)
+- [x] Judge and tool subprocesses run in the kernel sandbox
+- [x] GUI replays v2 growth runs; launcher uses v2 commands
+- [x] `growth/promote.py` (export a v2 harness as Agent Skills); README v2
 
 ## Phase 1: evidence without the teacher
 - [ ] E1 baseline on full train / gate / held-out (26 tasks)
 - [ ] E3 hackathon harness on full held-out
 - [ ] E2 h0 seed controller on full held-out
 - [ ] Determinism check (repeat a subset)
-- [ ] `growth/stats.py`: bootstrap CIs, paired comparisons, McNemar; report v2
+- [x] `growth/stats.py`: bootstrap CIs, paired comparisons, McNemar; report v2
 
 ## Phase 2: paper-faithful growth
-- [ ] `growth/stream.py`: training stream, failure window (K, R_max), checkpoint/resume, transactional rollback
-- [ ] `growth/validate.py`: edit budget L (function-level AST diff), trace scope, no deletions, specificity lint
-- [ ] Multi-change teacher output; function-level trace rendering + offline diagnostics in the teacher context
-- [ ] Repair threshold Q on the window, gate SR ≥ checkpoint, per-task regressions logged
-- [ ] Rehearsal with fake teacher + stub runner; unit tests (leak, rollback, resume, budget)
+- [x] `growth/stream.py`: training stream, failure window (K, R_max), checkpoint/resume, transactional rollback
+- [x] `growth/validate.py`: edit budget L (function-level AST diff), trace scope, no deletions, specificity lint
+- [x] Multi-change teacher output; function-level trace rendering + offline diagnostics in the teacher context
+- [x] Repair threshold Q on the window, gate SR ≥ checkpoint, per-task regressions logged
+- [x] Rehearsal with fake teacher + stub runner; unit tests (leak, rollback, resume, budget)
 - [ ] E4 real growth run on full train + gate; E5 h* once on held-out
 - [ ] Promote h*: export grown routines as Agent Skills, CI validation
 
 ## Phase 3: confidence
-- [ ] Grow the task suite (more verified mutations; one more held-out-only domain); baseline on new tasks
+- [x] Grow the task suite: 40 more verified bugs, append-only (suite v2, 68 tasks)
+- [ ] One more held-out-only domain (new template)
+- [ ] Baseline on the v2 tasks
 - [ ] E6 ablations: no-gate, window-1, no-fn-trace
 - [ ] E7 budget sensitivity (baseline at 24 steps)
 - [ ] Second growth run (variance across growth runs)
