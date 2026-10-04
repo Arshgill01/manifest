@@ -81,11 +81,14 @@ def pytest_env() -> dict[str, str]:
     return env
 
 
-def run_pytest(task_dir: Path, timeout: int = 60) -> TestRun:
-    proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-rA", "-q", "--tb=line", "-p", "no:cacheprovider", "-o", "console_output_style=classic"],
-        cwd=task_dir, capture_output=True, text=True, timeout=timeout, env=pytest_env(),
-    )
+def run_pytest(task_dir: Path, timeout: int = 60, *, sandbox: bool = False) -> TestRun:
+    """sandbox=True: run inside Warden's kernel sandbox (no network, no $HOME, tests/ read-only). The judge
+    uses it because the code under test was edited by a model."""
+    argv = [sys.executable, "-m", "pytest", "-rA", "-q", "--tb=line", "-p", "no:cacheprovider", "-o", "console_output_style=classic"]
+    if sandbox:
+        from warden.sandbox import tool_argv
+        argv = tool_argv(argv, task_dir)
+    proc = subprocess.run(argv, cwd=task_dir, capture_output=True, text=True, timeout=timeout, env=pytest_env())
     run = TestRun(output=proc.stdout + proc.stderr)
     crash_lines = []
     for line in proc.stdout.splitlines():

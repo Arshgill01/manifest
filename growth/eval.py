@@ -83,7 +83,7 @@ def judge(work: Path, pristine: Path, expected_total: int) -> dict[str, Any]:
     after = protected_fingerprint(work)
     tampered = sorted(k for k in before.keys() | after.keys() if before.get(k) != after.get(k))
     try:
-        result = run_pytest(work, timeout=90)
+        result = run_pytest(work, timeout=90, sandbox=True)
         passed, failed = len(result.passed), len(result.failed)
     except Exception as exc:  # timeout, crash
         passed, failed = 0, expected_total
