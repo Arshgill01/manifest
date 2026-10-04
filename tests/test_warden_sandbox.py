@@ -7,7 +7,7 @@ from harness.log import EventLog
 from warden import sandbox
 from warden.sandbox import SandboxExecutor, SandboxError, build_policy, render_profile
 
-pytestmark = pytest.mark.skipif(not sandbox.sandbox_available(), reason="needs macOS sandbox-exec")
+pytestmark = pytest.mark.skipif(not sandbox.sandbox_available(), reason="needs a kernel sandbox (macOS sandbox-exec or Linux bwrap)")
 
 ROUTINE_OK = '''
 from pydantic import BaseModel

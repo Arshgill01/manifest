@@ -1,7 +1,14 @@
-"""Runtime enforcement: run routines and skill scripts under macOS `sandbox-exec` (SPEC §6.3).
+"""Runtime enforcement: run routines and skill scripts in a kernel sandbox (SPEC §6.3).
 
-The untrusted code (a grown routine or a third-party skill script) runs in a child Python
-process wrapped in a Seatbelt profile generated from its Warden manifest:
+Two backends, same policy (`build_policy`):
+* **Linux: bubblewrap** (`bwrap`): fresh user/mount/net/pid/ipc namespaces. The child sees only
+  what is bind-mounted: system libraries, the interpreter + venv, the harness code dirs, the routine
+  dir, and the manifest's globs inside the workdir (writes as rw binds, `tests/` re-bound read-only).
+  `~/.ssh`, the repo `.env` and the rest of `$HOME` simply do not exist inside; the fake home's
+  `.ssh` is masked with a tmpfs. Network is unshared (no interfaces but loopback) unless the
+  manifest grants it; student calls never need a socket because they are proxied over the pipe.
+  Only the allowed executables are mounted, so `curl` & co. are not there to run.
+* **macOS: `sandbox-exec`** with a Seatbelt profile generated from the manifest:
 
 * network: denied, except the student endpoint `localhost:11434` (and broader outbound only
   when the manifest grants `network: true` and the verdict is not `dangerous`);
@@ -17,8 +24,9 @@ the manifest says: Warden's job is to describe them on the card, the sandbox's j
 Tool and student calls made by a routine are proxied back to the parent over a JSON-lines pipe,
 so the parent's `Tools` (manifest-checked) and `EventLog` (single writer) stay authoritative.
 A Python audit hook in the child reports attempted violations so the parent can log
-`warden.block`; the kernel sandbox is what actually denies them. Where `sandbox-exec` is not
-available, the same audit hook *enforces* instead (weaker; reported as `fallback`).
+`warden.block`; the kernel sandbox is what actually denies them. Under bwrap the hook also raises
+PermissionError (same semantics as macOS, where the kernel returns EPERM; bwrap would give
+ENOENT/EROFS). With no kernel sandbox at all, the hook alone enforces (weaker; reported as `fallback`).
 """
 
 from __future__ import annotations
@@ -38,6 +46,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 FAKEHOME = ROOT / "demo" / "fakehome"
 SANDBOX_EXEC = "/usr/bin/sandbox-exec"
+BWRAP = shutil.which("bwrap") or "/usr/bin/bwrap"
 OLLAMA_PORT = 11434
 
 DEFAULT_MANIFEST = {
@@ -51,7 +60,9 @@ DEFAULT_MANIFEST = {
 SYSTEM_READ = [
     "/usr", "/System", "/Library/Apple", "/Library/Preferences/Logging",
     "/private/etc", "/private/var/db/timezone", "/private/var/db/dyld", "/dev",
-]
+] if sys.platform == "darwin" else ["/usr", "/lib", "/lib64", "/etc", "/proc", "/dev", "/sys"]
+# What bwrap mounts read-only from the host (never /usr/bin wholesale: binaries are mounted one by one).
+BWRAP_SYSTEM = ["/usr/lib", "/usr/lib64", "/usr/share/zoneinfo", "/etc/ld.so.cache", "/etc/localtime"]
 DEV_WRITE = ["/dev/null", "/dev/tty", "/dev/stdout", "/dev/stderr", "/dev/dtracehelper"]
 
 # Tool/student methods a sandboxed routine may call through the proxy.
@@ -63,15 +74,35 @@ class SandboxError(RuntimeError):
     """The sandboxed child failed (exception in routine code, timeout, or protocol error)."""
 
 
-def sandbox_available() -> bool:
-    if sys.platform != "darwin" or not os.path.exists(SANDBOX_EXEC):
-        return False
+_BACKEND: list = []
+
+
+def backend() -> str | None:
+    """"sandbox-exec" (macOS), "bwrap" (Linux) or None. Probed once per process."""
+    if not _BACKEND:
+        _BACKEND.append(_probe())
+    return _BACKEND[0]
+
+
+def _probe() -> str | None:
     try:
-        r = subprocess.run([SANDBOX_EXEC, "-p", "(version 1)(allow default)", "/usr/bin/true"],
-                           capture_output=True, timeout=10)
-        return r.returncode == 0
+        if sys.platform == "darwin" and os.path.exists(SANDBOX_EXEC):
+            r = subprocess.run([SANDBOX_EXEC, "-p", "(version 1)(allow default)", "/usr/bin/true"],
+                               capture_output=True, timeout=10)
+            return "sandbox-exec" if r.returncode == 0 else None
+        if sys.platform.startswith("linux") and os.path.exists(BWRAP):
+            r = subprocess.run([BWRAP, "--unshare-all", "--die-with-parent", "--ro-bind", "/usr", "/usr",
+                                "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64",
+                                "--symlink", "usr/bin", "/bin", "--proc", "/proc", "--dev", "/dev", "/usr/bin/true"],
+                               capture_output=True, timeout=10)
+            return "bwrap" if r.returncode == 0 else None
     except Exception:
-        return False
+        return None
+    return None
+
+
+def sandbox_available() -> bool:
+    return backend() is not None
 
 
 # --------------------------------------------------------------------------- policy
@@ -97,6 +128,16 @@ def _glob_to_regex(glob: str) -> str:
         else:
             out.append(re.escape(glob[i])); i += 1
     return "".join(out)
+
+
+def _literal_dir(glob: str, workdir: str) -> str:
+    """Deepest wildcard-free directory of a glob: `src/pkg/*.py` -> <workdir>/src/pkg."""
+    parts = []
+    for part in glob.split("/")[:-1]:
+        if any(c in part for c in "*?["):
+            break
+        parts.append(part)
+    return os.path.join(workdir, *parts) if parts else workdir
 
 
 def _workdir_rules(globs: list[str], workdir: str) -> tuple[list[str], list[str], list[str]]:
@@ -150,6 +191,10 @@ def build_policy(manifest: dict | None, workdir: Path, *, extra_read: list[Path]
         "read_literals": [_real(ROOT)],  # directory listing only, so `import warden` resolves
         "write_subpaths": sorted(set(w_sub + ([_real(tmpdir)] if tmpdir else []))),
         "write_regex": w_re,
+        "write_regex_dirs": sorted({_literal_dir(g.strip().removeprefix("./"), wd) for g in m.get("write") or []
+                                    if any(c in g for c in "*?[") and not g.strip().endswith("/**")
+                                    and g.strip() not in ("**", "*") and not g.strip().startswith(("/", "~"))
+                                    and ".." not in Path(g.strip()).parts}),
         "write_literals": DEV_WRITE,
         "deny_read": deny,
         "deny_write": [os.path.join(wd, "tests")] + deny,
@@ -213,6 +258,70 @@ def render_profile(policy: dict) -> str:
     return "\n".join(L) + "\n"
 
 
+def render_bwrap(policy: dict, *, extra_exec: list[str] = ()) -> list[str]:
+    """bubblewrap argv prefix for `policy`. Later binds win, so read-only/masking binds come last."""
+    wd = policy["workdir"]
+    a = [BWRAP, "--unshare-all", "--die-with-parent", "--new-session",
+         "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+         "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64", "--symlink", "usr/bin", "/bin"]
+    if policy["network_open"]:
+        a += ["--share-net", "--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf",
+              "--ro-bind-try", "/etc/ssl", "/etc/ssl", "--ro-bind-try", "/etc/hosts", "/etc/hosts"]
+    for p in BWRAP_SYSTEM:
+        a += ["--ro-bind-try", p, p]
+    skip = {"/", "/usr", "/usr/bin", "/bin", "/usr/local", "/usr/local/bin"}
+    for p in policy["read_subpaths"]:
+        if p in skip or p in SYSTEM_READ or not os.path.exists(p) or p.startswith(wd):
+            continue
+        a += ["--ro-bind", p, p]
+    links: dict[str, str] = {}
+    for x in set(policy["exec_allow"]) | set(extra_exec):
+        links.update(_symlink_chain(x))
+    for p in sorted({_real(x) for x in set(policy["exec_allow"]) | set(extra_exec)}):
+        if os.path.exists(p):
+            a += ["--ro-bind", p, p]
+    for link, target in sorted(links.items()):  # e.g. /usr/bin/python3 -> python3.13 (venv python's chain)
+        if not any(link.startswith(r.rstrip("/") + "/") for r in policy["read_subpaths"] if r not in skip):
+            a += ["--symlink", target, link]
+    # the workdir: read globs (regex globs fall back to the whole workdir; the audit hook narrows them)
+    reads = [p for p in policy["read_subpaths"] if p == wd or p.startswith(wd + "/")]
+    if policy["read_regex"]:
+        reads = [wd]
+    a += ["--dir", wd]
+    for p in sorted(set(reads)):
+        if os.path.exists(p):
+            a += ["--ro-bind", p, p]
+    writes = list(policy["write_subpaths"]) + list(policy.get("write_regex_dirs", []))
+    for p in sorted(set(writes)):
+        if os.path.isdir(p) or os.path.isfile(p):
+            a += ["--bind", p, p]
+        elif p.startswith(wd + "/") and not os.path.exists(p):
+            os.makedirs(p, exist_ok=True)
+            a += ["--bind", p, p]
+    for p in policy["deny_write"]:
+        if p.startswith(wd + "/") and os.path.exists(p):
+            a += ["--ro-bind", p, p]
+    a += ["--ro-bind-try", str(FAKEHOME), str(FAKEHOME)]
+    for p in policy["deny_read"]:
+        if os.path.isdir(p) and (p.startswith(_real(FAKEHOME)) or p.startswith(wd)):
+            a += ["--tmpfs", p]  # mask: the directory exists but is empty
+    a += ["--chdir", wd]
+    return a
+
+
+def _symlink_chain(path: str) -> dict[str, str]:
+    """{link: target-as-written} for every symlink hop from `path` to the real file."""
+    out: dict[str, str] = {}
+    p = os.path.abspath(path)
+    for _ in range(16):
+        if not os.path.islink(p):
+            break
+        target = os.readlink(p)
+        out[p] = target
+        p = os.path.normpath(os.path.join(os.path.dirname(p), target))
+    return out
+
+
 def child_env(tmpdir: Path) -> dict:
     env = {
         "HOME": str(FAKEHOME),
@@ -244,6 +353,8 @@ def wrap_command(argv: list[str], manifest: dict | None, workdir: Path, *,
         return list(argv), env
     if argv and os.path.basename(argv[0]).startswith("python"):
         argv = [sys.executable, *argv[1:]]
+    if backend() == "bwrap":
+        return [*render_bwrap(policy), *argv], env
     return [SANDBOX_EXEC, "-p", render_profile(policy), *argv], env
 
 
@@ -294,8 +405,9 @@ class SandboxExecutor:
         self.log = log
         self.timeout = timeout
         self.mode = "sandbox" if enforce in ("auto", "sandbox") and sandbox_available() else "fallback"
+        self.backend = backend() if self.mode == "sandbox" else None
         if enforce == "sandbox" and self.mode != "sandbox":
-            raise SandboxError("sandbox-exec is not available on this machine")
+            raise SandboxError("no kernel sandbox (sandbox-exec / bwrap) is available on this machine")
 
     # -- public ------------------------------------------------------------------
     def run(self, routine_dir: Path, state: Any, tools: Any, student: Any, manifest: dict | None) -> Any:
@@ -330,11 +442,14 @@ class SandboxExecutor:
                extra_read: list[Path], tools: Any, student: Any) -> dict:
         tmp = Path(tempfile.mkdtemp(prefix="warden-"))
         policy = build_policy(manifest, workdir, extra_read=extra_read, tmpdir=tmp)
-        job = {**job, "policy": policy, "enforce": self.mode == "fallback", "skill": skill}
+        job = {**job, "policy": policy, "enforce": self.backend != "sandbox-exec", "skill": skill}
         argv = [sys.executable, "-I", "-B", "-c",
                 "import sys; sys.path.insert(0, %r); from warden import _child; _child.main()" % str(ROOT)]
-        if self.mode == "sandbox":
+        if self.backend == "sandbox-exec":
             argv = [SANDBOX_EXEC, "-p", render_profile(policy), *argv]
+        elif self.backend == "bwrap":
+            sh = ["/usr/bin/sh", _real("/usr/bin/sh")] if str(job.get("script", "")).endswith(".sh") else []
+            argv = [*render_bwrap(policy, extra_exec=sh), *argv]
         proc = subprocess.Popen(argv, cwd=policy["workdir"], env=child_env(tmp), text=True,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 bufsize=1)
@@ -380,9 +495,10 @@ class SandboxExecutor:
         result["blocks"] = blocks
         result["enforcement"] = self.mode
         # The kernel may deny something the audit hook did not attribute (e.g. via ctypes).
-        if not blocks and "Operation not permitted" in (err_text + str(result.get("error", ""))):
-            self._block(skill, "unattributed operation", "sandbox-exec denied it (EPERM)")
-            result["blocks"] = [{"attempted": "unattributed operation", "reason": "EPERM"}]
+        denied = ("Operation not permitted", "Read-only file system", "Network is unreachable")
+        if not blocks and any(d in err_text + str(result.get("error", "")) for d in denied):
+            self._block(skill, "unattributed operation", f"{self.backend or 'sandbox'} denied it")
+            result["blocks"] = [{"attempted": "unattributed operation", "reason": "kernel denial"}]
         return result
 
     def _dispatch(self, msg: dict, tools: Any, student: Any) -> dict:
@@ -409,6 +525,15 @@ class SandboxExecutor:
 
 # --------------------------------------------------------------------------- self-test
 
+def _port_open(port: int) -> str:
+    import socket
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=1).close()
+        return "1"
+    except OSError:
+        return "0"
+
+
 def selftest(verbose: bool = True) -> dict:
     """Prove the profile: blocks ~/.ssh + outbound network; allows python, pytest, src/** writes, Ollama."""
     probe = r'''
@@ -432,7 +557,9 @@ def ollama():
     try:
         socket.create_connection(("127.0.0.1", 11434), timeout=3).close()
     except ConnectionRefusedError:
-        pass  # sandbox allowed the connect; Ollama just isn't running
+        if os.environ.get("OLLAMA_UP") == "1":
+            raise  # Ollama is listening on the host, so a refusal means the sandbox cut us off
+        # else: the sandbox allowed the connect; Ollama just isn't running
 t("connect localhost:11434 (ollama)", ollama)
 t("run pytest", lambda: subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"],
                                         check=True, capture_output=True))
@@ -443,7 +570,10 @@ print(json.dumps(res))
         "read ~/.ssh/id_ed25519": "blocked", "read real ~/.ssh": "blocked", "read repo .env": "blocked",
         "read workdir": "allowed", "write src/**": "allowed", "write tests/**": "blocked",
         "connect 1.1.1.1:443": "blocked", "connect localhost:8765 (sink)": "blocked",
-        "connect localhost:11434 (ollama)": "allowed", "run pytest": "allowed", "exec curl": "blocked",
+        # sandbox-exec allows the student port; bwrap gives the child no network at all (student calls
+        # are proxied over the pipe by the parent, so routines never need a socket)
+        "connect localhost:11434 (ollama)": "blocked" if backend() == "bwrap" else "allowed",
+        "run pytest": "allowed", "exec curl": "blocked",
     }
     with tempfile.TemporaryDirectory(prefix="warden-selftest-") as d:
         wd = Path(d) / "work"
@@ -455,7 +585,7 @@ print(json.dumps(res))
         (wd / "probe.py").write_text(probe)
         argv, env = wrap_command(["python", "probe.py"], None, wd, tmpdir=Path(d) / "tmp")
         (Path(d) / "tmp").mkdir()
-        env.update(REAL_SSH=str(Path.home() / ".ssh"), REPO_ENV=str(ROOT / ".env"))
+        env.update(REAL_SSH=str(Path.home() / ".ssh"), REPO_ENV=str(ROOT / ".env"), OLLAMA_UP=_port_open(OLLAMA_PORT))
         r = subprocess.run(argv, cwd=wd, env=env, capture_output=True, text=True, timeout=120)
         try:
             got = json.loads(r.stdout.strip().splitlines()[-1])
@@ -463,7 +593,7 @@ print(json.dumps(res))
             raise SandboxError(f"probe failed: {r.stderr[-2000:]}")
     ok = all(got.get(k, "").startswith(v) for k, v in expect.items())
     if verbose:
-        print(f"sandbox-exec available: {sandbox_available()}")
+        print(f"kernel sandbox: {backend() or 'none (fallback)'}")
         for k, v in expect.items():
             mark = "ok " if got.get(k, "").startswith(v) else "BAD"
             print(f"  [{mark}] {k:<34} expected {v:<8} got {got.get(k)}")
