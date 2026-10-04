@@ -122,3 +122,17 @@ def test_window_one_ablation_sets_k(tmp_path):
     s.loop()
     windows = [e for e in s.log.events if e["type"] == "growth.window"]
     assert windows and all(len(w["window"]) <= 1 for w in windows)
+
+
+def test_promote_exports_the_exact_grown_versions(tmp_path):
+    from growth.promote import promote
+    s = _stream(tmp_path / "run")
+    s.loop()
+    names = promote(s.hdir / "registry.json", skills_root=tmp_path / "skills")
+    grown = [e for e in s.entries() if e["source"] == "grown"]
+    assert names == [e["name"] for e in grown]
+    for e in grown:
+        from growth.grow import resolve
+        src = resolve(e["path"])
+        assert (tmp_path / "skills" / e["name"] / "scripts" / "routine.py").read_text() == (src / "routine.py").read_text()
+        assert (tmp_path / "skills" / e["name"] / "SKILL.md").exists()
