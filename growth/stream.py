@@ -73,6 +73,7 @@ class StreamConfig:
     train_ids: list[str] | None = None
     gate_ids: list[str] | None = None
     heldout_ids: list[str] | None = None
+    heldout_profile: str | None = None   # evaluate h* on another profile's held-out (e.g. v2: 26 tasks)
     label: str = "stream"
 
     @property
@@ -100,6 +101,8 @@ class Stream:
         self.train = cfg.train_ids or list(splits["train"])
         self.gate_ids = cfg.gate_ids or list(splits["gate"])
         self.heldout = cfg.heldout_ids or list(splits["heldout"])
+        if cfg.heldout_profile and not cfg.heldout_ids:
+            self.heldout = list(load_splits(False, cfg.heldout_profile)["heldout"])
         self.leak_terms = leak_terms_for(splits)
         if set(self.train) & set(splits.get("heldout", []) + splits.get("heldoutAll", [])):
             raise LeakError("a held-out task was passed as a train task")
@@ -487,6 +490,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-seconds", type=int, default=1800)
     p.add_argument("--executor", choices=("auto", "sandbox", "inprocess"), default="auto")
     p.add_argument("--train-tasks"); p.add_argument("--gate-tasks"); p.add_argument("--heldout-tasks")
+    p.add_argument("--heldout-profile", help="evaluate the final harness on this profile's held-out split")
     p.add_argument("--resume", metavar="RUN_ID")
     p.add_argument("--label", default="stream")
     a = p.parse_args(argv)
@@ -495,7 +499,8 @@ def main(argv: list[str] | None = None) -> int:
                        teacher_hours=a.teacher_hours, ablate=a.ablate, fake_teacher=a.fake_teacher,
                        stub_runner=a.stub_runner, heldout_final=not a.no_heldout, max_steps=a.max_steps,
                        max_seconds=a.max_seconds, executor=a.executor, train_ids=_ids(a.train_tasks),
-                       gate_ids=_ids(a.gate_tasks), heldout_ids=_ids(a.heldout_tasks), label=a.label)
+                       gate_ids=_ids(a.gate_tasks), heldout_ids=_ids(a.heldout_tasks),
+                       heldout_profile=a.heldout_profile, label=a.label)
     if a.resume:
         saved = json.loads((GROWTH_ROOT / a.resume / "checkpoint.json").read_text())["config"]
         cfg = StreamConfig(**{**saved, "teacher_budget": a.teacher_budget, "teacher_hours": a.teacher_hours,
