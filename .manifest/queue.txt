@@ -1,0 +1,4 @@
+# label|command   (one model-backed job at a time; edit freely, finished labels live in .manifest/logs/queue.done)
+smoke-stream|uv run python -m growth.stream --profile full --train-tasks ledgerly-03,stockroom-04 --gate-tasks ledgerly-05 --no-heldout --max-opt-steps 1 --window 1 --teacher-budget 0.10 --label smoke-stream
+e3-hackathon-heldout|uv run python -m growth.eval --split heldout --profile full --mode manifest --registry routines/registry.json --round 1 --label e3-hackathon-heldout
+e2-h0-heldout|uv run python -m growth.eval --split heldout --profile full --mode manifest --registry harnesses/seed/registry.json --round 0 --label e2-h0-heldout
