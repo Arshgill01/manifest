@@ -13,8 +13,10 @@ before it is kept. After growth, the 4B model (Qwen3.5-4B via Ollama) plus the g
 
 Built in one day at a hackathon (October 3, 2026), where it placed **3rd**.
 
-![The teacher proposes triage-fix; Warden grants it write src/**, run python -m pytest, no network](docs/images/gui-session-triage-fix.png)
-<sub>The GUI replaying the real growth run: the teacher's proposal for <code>triage-fix</code>, in its own words, with Warden's permission manifest. Footer: held-out 33% → 33%, model calls per task 7.3 → 4.3.</sub>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/gui-home-dark.png">
+  <img alt="The Manifest GUI: New run, set to run the grown harness on the held-out demo tasks with qwen3.5:4b" src="docs/images/gui-home-light.png">
+</picture>
 
 ---
 
@@ -39,6 +41,9 @@ teacher; we never edited it). It runs the full suite, follows the traceback to t
 own code, shows the student only that window, asks for one search/replace patch, applies it, and re-runs
 the suite. Warden's verdict: **ok**. It writes `src/**` only, runs `python -m pytest` only, and has no network.
 It is exported as an Agent Skill in [`skills/triage-fix/`](skills/triage-fix/SKILL.md).
+
+![The teacher proposes triage-fix; Warden grants it write src/**, run python -m pytest, no network](docs/images/gui-session-triage-fix.png)
+<sub>The GUI replaying the real growth run: the teacher's proposal for <code>triage-fix</code>, in its own words, with Warden's permission manifest. Footer: held-out 33% → 33%, model calls per task 7.3 → 4.3.</sub>
 
 **Why process, not knowledge:** in the round-0 checkpoint every failure was a *process* failure, labelled
 by `tasks/labels.py`: 0 knowledge failures and 0 tool-format failures. In 4 of 4 failures the student had
