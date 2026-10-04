@@ -102,3 +102,23 @@ def test_round0_cache_hits_with_explicit_ids(tmp_path, monkeypatch):
     second = ev.run_split("train", mode="baseline", round=0, log=log2, task_ids=ids)
     assert len(calls) == 2 and first["passed"] == second["passed"] == 0
     assert log2.events and all(e.get("cached") for e in log2.events)
+
+
+def test_infrastructure_errors_are_rerun_not_scored(tmp_path, monkeypatch):
+    """Ollama OOM-killed mid-task: the outcome is re-run after Ollama is back, never counted as a student failure."""
+    import growth.eval as ev
+    from harness.log import EventLog
+    calls = []
+
+    def fake_run_one(tid, **kw):
+        calls.append(tid)
+        err = "ConnectionError: Failed to connect to Ollama." if len(calls) == 1 else None
+        return {"taskId": tid, "pass": err is None, "modelCalls": 1, "steps": 1, "routineCalls": 0, "ms": 1,
+                "judge": {}, "error": err, "events": []}
+
+    monkeypatch.setattr(ev, "run_one", fake_run_one)
+    monkeypatch.setattr(ev, "wait_for_ollama", lambda max_wait=600: True)
+    res = ev.run_split("heldout", mode="manifest", round=1, log=EventLog(), task_ids=["ledgerly-01"])
+    assert calls == ["ledgerly-01", "ledgerly-01"] and res["passed"] == 1
+    assert ev.is_infra_error("RemoteProtocolError: Server disconnected without sending a response.")
+    assert not ev.is_infra_error("ValueError: boom")

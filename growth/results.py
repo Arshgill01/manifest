@@ -21,6 +21,7 @@ from harness.log import ROOT, read_events
 from tasks.labels import label_task
 
 SPLITS = ("heldout", "gate", "train")
+INFRA = ("ConnectionError", "RemoteProtocolError", "Failed to connect to Ollama", "Server disconnected")
 
 
 def _index() -> dict:
@@ -50,6 +51,8 @@ def task_records(events: list[dict], splits: list[str] | None = None) -> dict[tu
         if e["type"] != "task.end":
             continue
         evs = cur.pop(key)
+        if e.get("infra") or any(m in str(e.get("error") or "") for m in INFRA):
+            continue  # the machine failed, not the student (Ollama killed / restarting): never scored
         student = [x for x in evs if x["type"] == "model.call" and x.get("role") == "student"]
         meta = index.get(tid, {})
         rec = {
@@ -94,11 +97,17 @@ def render(cfg: dict, cfg_path: Path) -> str:
     split_ids = splits_all["profiles"][profile]
     exps = []
     for x in cfg.get("experiments", []):
-        p = ROOT / x["log"]
-        if not p.exists():
+        logs = [x["log"]] if isinstance(x["log"], str) else list(x["log"])   # later logs complete / repair earlier ones
+        ev, recs = [], {}
+        for lg in logs:
+            p = ROOT / lg
+            if p.exists():
+                e = read_events(p)
+                ev += e
+                recs.update(task_records(e, x.get("splits")))
+        if not ev:
             continue
-        ev = read_events(p)
-        exps.append({**x, "events": ev, "start": _start(ev), "recs": task_records(ev, x.get("splits"))})
+        exps.append({**x, "events": ev, "start": _start(ev), "recs": recs})
     ref = next((x for x in exps if x["id"] == cfg.get("reference")), exps[0] if exps else None)
 
     L = ["# Results (v2)", "",

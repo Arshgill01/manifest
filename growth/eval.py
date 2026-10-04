@@ -173,6 +173,7 @@ def run_one(task_id: str, *, split: str | None, mode: str, round: int, log: Even
             stopReason=stats.get("stopReason"),
             overtime=ms > (max_seconds + 30) * 1000,
             **({"error": error} if error else {}),
+            **({"infra": True} if is_infra_error(error) else {}),
         )
         events = (log.events or [])[start_idx:]
     return {
@@ -180,6 +181,28 @@ def run_one(task_id: str, *, split: str | None, mode: str, round: int, log: Even
         "routineCalls": end["routineCalls"], "ms": ms, "judge": verdict, "error": error,
         "events": [e for e in events if e.get("taskId") == task_id],
     }
+
+
+INFRA_ERRORS = ("ConnectionError", "RemoteProtocolError", "ConnectError", "ReadError", "Failed to connect to Ollama",
+                "Server disconnected", "ResponseError: model runner has unexpectedly stopped")
+
+
+def is_infra_error(error: str | None) -> bool:
+    """The machine failed (Ollama killed / restarting), not the student. Such outcomes are re-run, never scored."""
+    return bool(error) and any(m in error for m in INFRA_ERRORS)
+
+
+def wait_for_ollama(max_wait: float = 600.0) -> bool:
+    import urllib.request
+    host = (os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
+    t_end = time.monotonic() + max_wait
+    while time.monotonic() < t_end:
+        try:
+            with urllib.request.urlopen(f"{host}/api/version", timeout=3):
+                return True
+        except Exception:
+            time.sleep(10)
+    return False
 
 
 def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str | None = None,
@@ -207,6 +230,13 @@ def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str
             continue
         outcome = run_one(tid, split=split, mode=mode, round=round, log=log, registry=registry, run_dir=run_dir,
                           max_steps=max_steps, max_seconds=max_seconds, executor=executor)
+        for _ in range(2):  # infrastructure failure (e.g. Ollama OOM-killed): wait for it, re-run from a fresh copy
+            if not is_infra_error(outcome.get("error")):
+                break
+            print(f"[eval] {tid}: infrastructure error ({outcome['error'][:80]}); waiting for Ollama and re-running", flush=True)
+            wait_for_ollama()
+            outcome = run_one(tid, split=split, mode=mode, round=round, log=log, registry=registry, run_dir=run_dir,
+                              max_steps=max_steps, max_seconds=max_seconds, executor=executor)
         if cfile and not outcome.get("error") and not cfile.exists():  # --force re-runs never overwrite the cache
             cfile.parent.mkdir(parents=True, exist_ok=True)
             cfile.write_text(json.dumps(outcome, default=str))
