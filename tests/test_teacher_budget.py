@@ -48,3 +48,10 @@ def test_offpeak_mode_waits(tmp_path, monkeypatch):
     b = Budget(total_cap=1.0, ledger=Ledger(tmp_path / "l.jsonl"), hours="offpeak", sleep=slept.append)
     b.before_call(estimate=0.01)
     assert slept and slept[0] >= 5
+
+
+def test_real_teacher_gets_a_budget_by_default():
+    from harness.log import EventLog
+    from harness.teacher import Teacher
+    t = Teacher(EventLog(), api_key="sk-test", model="deepseek-flash")   # builds a client, makes no call
+    assert t.budget is not None

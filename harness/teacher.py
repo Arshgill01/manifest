@@ -387,6 +387,8 @@ class Teacher:
         run_id: str | None = None,
     ):
         load_env()
+        # A real client gets a spend guard + ledger by default; injected (test) clients only if asked.
+        self.budget = budget if budget is not None else (Budget() if client is None else None)
         self.log = log
         self.model = model or os.environ.get("TEACHER_MODEL", "").strip()
         if not self.model:
@@ -403,8 +405,6 @@ class Teacher:
                 timeout=300,
                 max_retries=2,
             )
-        # A real client gets a spend guard + ledger by default; injected (test) clients only if asked.
-        self.budget = budget if budget is not None else (Budget() if client is None else None)
         self.client = client
         self.fixed_prices = prices          # tests pin prices; otherwise the peak/off-peak schedule decides
         self.schedule = PriceSchedule.from_env()

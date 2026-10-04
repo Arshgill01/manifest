@@ -1,0 +1,1 @@
+{"ts": "2026-10-04T19:58:00+00:00", "costUsd": 0.000153, "purpose": "warden-summarize", "model": "deepseek-flash", "promptTokens": 167, "cacheHitTokens": 0, "outTokens": 214, "peak": false, "runId": "key-check", "note": "backfilled"}
