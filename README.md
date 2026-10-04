@@ -13,12 +13,17 @@ before it is kept. After growth, the 4B model (Qwen3.5-4B via Ollama) plus the g
 
 Built in one day at a hackathon (October 3, 2026), where it placed **3rd**.
 
+![The teacher proposes triage-fix; Warden grants it write src/**, run python -m pytest, no network](docs/images/gui-session-triage-fix.png)
+<sub>The GUI replaying the real growth run: the teacher's proposal for <code>triage-fix</code>, in its own words, with Warden's permission manifest. Footer: held-out 33% → 33%, model calls per task 7.3 → 4.3.</sub>
+
 ---
 
 ## Results
 
 Every number below is recomputed from the committed event log by `growth/report.py`.
 Full tables: [`RESULTS.md`](RESULTS.md). Raw log: `.manifest/runs/20261003-135116-growth.jsonl`.
+
+![Results tab: held-out pass rate flat at 33%, model calls per task 7.3 to 4.3, teacher bill $0.01](docs/images/gui-results.png)
 
 | | Baseline (plain tool loop) | Grown harness |
 |---|---|---|
