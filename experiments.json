@@ -2,9 +2,33 @@
   "profile": "full",
   "reference": "E1",
   "experiments": [
-    {"id": "E1", "label": "baseline tool-calling (student only)", "log": ".manifest/runs/20261005-015910-baseline-full-v3.jsonl"},
-    {"id": "E3", "label": "hackathon harness (triage-fix)", "log": ".manifest/runs/PENDING-e3.jsonl", "splits": ["heldout"]},
-    {"id": "E2", "label": "h0: seed controller", "log": ".manifest/runs/PENDING-e2.jsonl", "splits": ["heldout"]}
+    {
+      "id": "E1",
+      "label": "baseline tool-calling (student only)",
+      "log": [
+        ".manifest/runs/20261005-015910-baseline-full-v3.jsonl",
+        ".manifest/runs/20261005-060239-e1-repair.jsonl"
+      ]
+    },
+    {
+      "id": "E3",
+      "label": "hackathon harness (triage-fix)",
+      "log": ".manifest/runs/PENDING-e3.jsonl",
+      "splits": [
+        "heldout"
+      ]
+    },
+    {
+      "id": "E2",
+      "label": "h0: seed controller",
+      "log": ".manifest/runs/PENDING-e2.jsonl",
+      "splits": [
+        "heldout"
+      ]
+    }
   ],
-  "growth": []
+  "growth": [],
+  "notes": [
+    "E1's first run of ratekeeper-02 and ledgerly-04 hit an Ollama OOM kill (infra, excluded); the repair pass re-ran them."
+  ]
 }

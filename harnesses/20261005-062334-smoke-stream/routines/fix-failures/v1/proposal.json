@@ -1,0 +1,37 @@
+{
+  "name": "fix-failures",
+  "trigger_description": "Applies while the task is unsolved and either the full-suite result is stale (no run yet, or edits happened after the last run) or a traceback frame in non-test project source has been tried fewer than twice. Refreshes the suite (undoing edits that made it strictly worse), asks the student for one minimal search/replace edit at the innermost failing project frame, and verifies it immediately.",
+  "requested_permissions": {
+    "read": [
+      "**"
+    ],
+    "write": [
+      "src/**"
+    ],
+    "commands": [
+      "python -m pytest"
+    ],
+    "network": false
+  },
+  "step": 1,
+  "teacher": "deepseek-flash",
+  "runId": "20261005-062334-smoke-stream",
+  "rationale": "The window task fails purely on process: the student spent all 11 calls reading files (10 reads, 0 edits), ran the suite once, never re-ran it after work, and declared itself done with 10 tests still failing. Nothing in the harness forced the loop 'one failure -> one focused edit -> verify'. This candidate adds a single deterministic repair routine placed before the ask-student fallback. Each pass either (a) refreshes the full-suite result when it is stale (no run yet, or edits happened since the last run) and reverts the newest edit when that run made the suite strictly worse, or (b) takes the innermost non-test traceback frame of the next unrepaired failure, reads only that file, and asks the student exactly one focused question (failing test, error, traceback, enclosing function snippet) for one verbatim search/replace edit, then re-runs the whole suite in the same pass. Candidates are ranked innermost-frame-first so deep call chains are followed, each location is tried at most twice with a reworded second prompt, and once no patchable source frame is left applies() returns False so the generic fallback takes over. The student no longer chooses what to read or when to verify.",
+  "functionsChanged": {
+    "added": [
+      "PatchOut",
+      "_candidates",
+      "_is_test",
+      "_norm",
+      "_refresh",
+      "_snippet",
+      "_stale",
+      "applies",
+      "run"
+    ],
+    "modified": [],
+    "removed": [],
+    "other": true,
+    "edit": false
+  }
+}

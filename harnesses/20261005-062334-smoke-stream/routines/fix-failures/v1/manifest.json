@@ -1,0 +1,115 @@
+{
+  "skill": "fix-failures",
+  "read": [
+    "**"
+  ],
+  "write": [
+    "src/**"
+  ],
+  "commands": [
+    "python -m pytest"
+  ],
+  "network": false,
+  "findings": [
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Reads project source files via tools.read_file() on paths taken from pytest traceback frames, then sends the enclosing code snippet plus error text to student.ask() for an LLM/student model."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Writes edits to project files via tools.edit_file() using a search/replace pair returned by the student model."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Executes the project's test suite through tools.run_tests(), i.e. runs arbitrary project/test code as a subprocess."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No direct network calls, imports, or HTTP/socket usage appear in this file; any network traffic would come from the student/tools implementations."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No direct reads of environment variables, credentials, API keys, or secret files (no os.environ, keyring, dotfile, or config-secret access)."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No dynamic code execution (no eval, exec, compile) in this file."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "File paths are normalized by stripping leading './' and converting backslashes, but absolute paths and '..' segments are not rejected, so traceback-derived paths can point outside the working directory."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "tools.read_file(cand['file']) can read any path that appears as a traceback frame, including absolute or outside-project paths, and the content is exfiltrated into the model prompt."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "tools.edit_file() is called on the candidate path and on the model-returned path; the model path is only constrained when state.files is non-empty, otherwise it can fall back to an unchecked traceback path."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Test files are explicitly excluded from edits via _is_test(), but the exclusion only checks filename/directory patterns like tests/, test_, _test.py, and conftest, not an absolute project root."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "On regression it reverts the last edit by calling tools.edit_file() with search and replace swapped, modifying files on disk again."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "The prompt instructs the model to fix source code and never edit tests, but the model's 'file' field is attacker-influenced if the student is untrusted, enabling arbitrary source-path edits."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No credential/secret/env reads and no explicit outbound network calls occur in routine.py; process execution and file mutation are delegated to tools.run_tests, tools.read_file, and tools.edit_file."
+    }
+  ],
+  "verdict": "ok",
+  "reasons": [],
+  "undeclared": {
+    "read": [],
+    "commands": [],
+    "network": false
+  },
+  "hosts": [],
+  "declaredFrom": "requested"
+}

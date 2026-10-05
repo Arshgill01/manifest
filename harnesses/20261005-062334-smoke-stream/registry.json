@@ -1,0 +1,17 @@
+[
+  {
+    "name": "start",
+    "path": "routines/seed/start",
+    "source": "seed"
+  },
+  {
+    "name": "fix-failures",
+    "path": "harnesses/20261005-062334-smoke-stream/routines/fix-failures/v1",
+    "source": "grown"
+  },
+  {
+    "name": "ask-student",
+    "path": "routines/seed/ask-student",
+    "source": "seed"
+  }
+]
