@@ -25,7 +25,8 @@ from harness.log import ROOT, EventLog
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 SEED_NAMES = ("start", "ask-student")
-MAX_ROUTINE_LINES = 150
+MAX_ROUTINE_LINES = 200   # v1: 150; the teacher repeatedly overshot 150 by a few lines (it can't count lines), aim stays 150
+TARGET_ROUTINE_LINES = 150
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 PROPOSE_INSTRUCTION = (
@@ -129,7 +130,8 @@ def check_routine_source(src: str, name: str) -> None:
     """Raise ValueError unless `src` is a ≤150-line module with NAME == name, applies(state), run(state, tools, student)."""
     n_lines = len(src.strip().splitlines())
     if n_lines > MAX_ROUTINE_LINES:
-        raise ValueError(f"routine_py is {n_lines} lines; the limit is {MAX_ROUTINE_LINES}")
+        raise ValueError(f"routine_py is {n_lines} lines; the hard limit is {MAX_ROUTINE_LINES}. Shorten it: drop "
+                         f"docstrings and comments, merge small helpers, or move part of the logic to a later step")
     try:
         tree = ast.parse(src)
     except SyntaxError as e:
@@ -297,7 +299,8 @@ def render_change_messages(context: dict) -> list[dict]:
         "counts 1; other changed module-level code in an edited routine counts 1).",
         "Never delete an existing routine or an existing top-level function (you may stop using it).",
         "Each routine_py is a complete module: NAME = \"<name>\", def applies(state) -> bool, "
-        f"def run(state, tools, student) returning the state; at most {MAX_ROUTINE_LINES} lines; stdlib + pydantic only.",
+        f"def run(state, tools, student) returning the state; aim for ≤{TARGET_ROUTINE_LINES} lines (hard limit "
+        f"{MAX_ROUTINE_LINES}, counted including docstrings and comments); stdlib + pydantic only.",
         "Every entry in `changes` is a standalone routine module with its own NAME, applies(state) and run(state, tools, "
         "student). There are no helper/library modules and routines cannot import each other: put helpers inside the "
         "routine that uses them (copy them if two routines need them; that costs edit budget).",

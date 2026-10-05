@@ -59,7 +59,8 @@ class StreamConfig:
     r_max: int = 3             # repair attempts      [paper: 5]
     q: int = 1                 # repair threshold     [paper: Q]
     budget: int = 10           # edit budget L        [paper: 10]
-    max_opt_steps: int = 12    # optimisation steps (teacher calls that produced a candidate)
+    max_opt_steps: int = 12    # optimisation steps = candidates that passed validation and were evaluated
+    max_teacher_steps: int = 30  # runaway guard: proposals of any kind (invalid ones included)
     max_hours: float = 72.0
     teacher_budget: float = 0.75
     teacher_hours: str = "smart"  # any | offpeak | smart
@@ -223,8 +224,12 @@ class Stream:
             if not self.state["window"]:
                 self.finish("stream exhausted and the window is empty")
                 break
-            if self.state["step"] >= self.cfg.max_opt_steps:
-                self.finish(f"reached max optimisation steps ({self.cfg.max_opt_steps})")
+            evaluated = sum(1 for h in self.state["history"] if h.get("stage") != "validate")
+            if evaluated >= self.cfg.max_opt_steps:
+                self.finish(f"reached max optimisation steps ({self.cfg.max_opt_steps} evaluated candidates)")
+                break
+            if self.state["step"] >= self.cfg.max_teacher_steps:
+                self.finish(f"reached max teacher proposals ({self.cfg.max_teacher_steps})")
                 break
             if time.time() > t_end:
                 self.finish(f"reached max hours ({self.cfg.max_hours})")

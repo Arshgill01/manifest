@@ -101,7 +101,7 @@ def test_routine_source_checks():
     with pytest.raises(ValueError, match="NAME"):
         check_routine_source(ok, "y")
     with pytest.raises(ValueError, match="lines"):
-        check_routine_source(ok + "\n".join(f"a{i} = {i}" for i in range(150)), "x")
+        check_routine_source(ok + "\n".join(f"a{i} = {i}" for i in range(200)), "x")
     with pytest.raises(ValueError, match="parse"):
         check_routine_source("def (:", "x")
     with pytest.raises(ValueError, match="run"):
