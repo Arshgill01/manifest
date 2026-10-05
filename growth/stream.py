@@ -291,7 +291,8 @@ class Stream:
 
         say(f"step {t}: asking the teacher about window {[w['taskId'] for w in st['window']]}")
         try:
-            cs = self.teacher.propose_changes(ctx, check=check)
+            with self.log.scope(round=t, taskId=None, split=None):
+                cs = self.teacher.propose_changes(ctx, check=check)
         except (TeacherOutputError, ValueError) as e:
             st["step"] = t
             return self.reject(t, [], "validate", str(e)[:400])
@@ -314,7 +315,8 @@ class Stream:
                         functionsChanged=verdict.per_routine.get(ch["name"], {}))
             (d / "proposal.json").write_text(json.dumps(prov, indent=2) + "\n")
             proposal = {"name": ch["name"], "skill_md": ch["skill_md"], "trigger_description": ch["trigger_description"]}
-            findings = self.scan(d, teacher=self.teacher)
+            with self.log.scope(round=t, taskId=None, split=None):
+                findings = self.scan(d, teacher=self.teacher)
             m = self.build(d, ch["requested_permissions"], findings)
             (d / "manifest.json").write_text(json.dumps(m, indent=2) + "\n")
             (d / "SKILL.md").write_text(render_skill_md(proposal, round=t, teacher_model=self.teacher.model, manifest=m))

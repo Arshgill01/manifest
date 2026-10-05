@@ -416,9 +416,13 @@ class Teacher:
         self.schedule = PriceSchedule.from_env()
         self.run_id = run_id
         self.max_tokens = max_tokens
+        # DeepSeek thinking mode defaults to effort "high": with a 12k-token growth prompt that regularly spent the
+        # whole 32k output cap on hidden reasoning and returned nothing ($0.04 per empty call). "low" by default.
+        self.reasoning_effort = os.environ.get("TEACHER_REASONING_EFFORT", "low").strip() or None
         self.cost_usd = 0.0
         self.calls = 0
         self.prompts: list[list[dict]] = []  # every message list sent, for audit and the leak test
+        self.last_finish: str | None = None
 
     # ---- public API (CONTRACT 2.5)
 
@@ -445,12 +449,21 @@ class Teacher:
     def _json_call(self, purpose: str, messages: list[dict], validate: Callable[[dict], Any], max_tokens: int | None = None) -> Any:
         for attempt in (1, 2):
             raw = self._chat(purpose, messages, max_tokens or self.max_tokens, attempt)
+            truncated = self.last_finish == "length"
             try:
+                if truncated:
+                    raise ValueError("the answer was cut off at the output-token limit before the JSON was complete")
                 return validate(parse_json_object(raw))
             except ValueError as e:  # pydantic ValidationError is a ValueError
                 err = _error_text(e)
                 if attempt == 2:
                     raise TeacherOutputError(f"{purpose}: invalid teacher output after retry: {err}") from None
+                if truncated:  # don't resend the truncated text; ask for less
+                    messages = messages + [{"role": "user", "content":
+                        "Your previous answer was cut off at the output limit before the JSON was complete. Think "
+                        "briefly, then return a SMALLER change set (one or two routines, well under 150 lines each) "
+                        "as ONLY the JSON object."}]
+                    continue
                 messages = messages + [
                     {"role": "assistant", "content": raw or ""},
                     {"role": "user", "content": f"That response was invalid: {err}\nReturn ONLY the corrected JSON object."},
@@ -464,6 +477,7 @@ class Teacher:
         peak = is_peak()
         prices = self.fixed_prices or self.schedule.prices()
         t0 = time.monotonic()
+        extra = {"reasoning_effort": self.reasoning_effort} if getattr(self, "reasoning_effort", None) else {}
         try:
             resp = self.client.chat.completions.create(
                 model=self.model,
@@ -471,10 +485,12 @@ class Teacher:
                 temperature=0,
                 max_tokens=max_tokens,
                 response_format={"type": "json_object"},
+                **extra,
             )
         except Exception as e:  # network/auth/rate-limit: not a validation problem, don't burn the retry
             raise TeacherError(f"teacher API call failed ({purpose}): {type(e).__name__}: {e}") from e
         ms = int((time.monotonic() - t0) * 1000)
+        self.last_finish = getattr(resp.choices[0], "finish_reason", None) if getattr(resp, "choices", None) else None
         usage = getattr(resp, "usage", None)
         prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
         out_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
@@ -497,6 +513,8 @@ class Teacher:
             costUsd=round(cost, 6),
             peak=peak,
             attempt=attempt,
+            finishReason=self.last_finish,
+            reasoningEffort=extra.get("reasoning_effort"),
             prompt=(str(messages[-1].get("content", ""))[-1200:] if messages else ""),
             response=resp.choices[0].message.content or "",   # full text: it is the provenance of grown code
         )

@@ -144,3 +144,24 @@ def test_fake_proposals_are_valid():
 
     for p in FAKE_PROPOSALS:
         Proposal.model_validate(p)
+
+
+def test_truncated_answer_is_retried_without_resending_it_and_effort_is_low():
+    from types import SimpleNamespace as NS
+    from harness.log import EventLog
+    from harness.teacher import Teacher
+    good = json.dumps({"findings": ["reads nothing"]})
+    replies = [("", "length"), (good, "stop")]
+    seen = []
+
+    class C:
+        def create(self, **kw):
+            seen.append(kw)
+            text, fin = replies[len(seen) - 1]
+            return NS(choices=[NS(message=NS(content=text), finish_reason=fin)],
+                      usage=NS(prompt_tokens=10, completion_tokens=5, prompt_cache_hit_tokens=0))
+
+    t = Teacher(EventLog(), client=NS(chat=NS(completions=C())), model="m")
+    assert t.summarize_code("x = 1") == ["reads nothing"]
+    assert seen[0]["reasoning_effort"] == "low"
+    assert all(m["role"] != "assistant" for m in seen[1]["messages"]) and "cut off" in seen[1]["messages"][-1]["content"]
