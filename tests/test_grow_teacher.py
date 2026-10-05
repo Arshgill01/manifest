@@ -169,7 +169,7 @@ def test_truncated_answer_is_retried_without_resending_it_and_effort_is_low():
 
 def test_comments_and_docstrings_do_not_count_and_fences_are_stripped():
     from harness.teacher import Change
-    body = '"""doc\n' + "more doc\n" * 200 + '"""\nNAME = "x"\n' + "# c\n" * 50 + \
+    body = '"""doc\n' + "more doc\n" * 300 + '"""\nNAME = "x"\n' + "# c\n" * 50 + \
         "def applies(state):\n    return True\n\ndef run(state, tools, student):\n    return state\n"
     with pytest.raises(ValueError, match="hard ceiling"):
         check_routine_source(body, "x")            # >300 total lines
