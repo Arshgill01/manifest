@@ -393,7 +393,8 @@ class Stream:
 
     def reject(self, t: int, names: list[str], stage: str, reason: str) -> None:
         st = self.state
-        retired = self._bump_and_retire()
+        # A candidate that never ran (invalid output) is not a repair attempt on the window tasks.
+        retired = self._bump_and_retire() if stage != "validate" else []
         st["history"].append({"step": t, "changes": names, "outcome": "rejected", "stage": stage, "reason": reason})
         say(f"step {t}: REJECTED at {stage}: {reason}" + (f"; retired {retired}" if retired else ""))
         with self.log.scope(round=t, taskId=None, split=None):

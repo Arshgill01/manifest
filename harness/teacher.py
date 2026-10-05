@@ -146,7 +146,10 @@ def check_routine_source(src: str, name: str) -> None:
         raise ValueError(f'routine_py must define NAME = "{name}" at module level (got {names.get("NAME")!r})')
     for fn, arity in (("applies", 1), ("run", 3)):
         if fn not in funcs:
-            raise ValueError(f"routine_py must define a top-level function {fn}()")
+            found = ", ".join(sorted(funcs)) or "none"
+            raise ValueError(f"routine_py of {name!r} must define a top-level function {fn}() (found top-level functions: "
+                             f"{found}). Every change is a standalone routine: NAME, applies(state), run(state, tools, "
+                             f"student). Routines cannot import each other; copy shared helpers into each routine")
         if len(funcs[fn].args.args) != arity:
             raise ValueError(f"{fn}() must take exactly {arity} positional argument(s)")
 
@@ -295,6 +298,9 @@ def render_change_messages(context: dict) -> list[dict]:
         "Never delete an existing routine or an existing top-level function (you may stop using it).",
         "Each routine_py is a complete module: NAME = \"<name>\", def applies(state) -> bool, "
         f"def run(state, tools, student) returning the state; at most {MAX_ROUTINE_LINES} lines; stdlib + pydantic only.",
+        "Every entry in `changes` is a standalone routine module with its own NAME, applies(state) and run(state, tools, "
+        "student). There are no helper/library modules and routines cannot import each other: put helpers inside the "
+        "routine that uses them (copy them if two routines need them; that costs edit budget).",
         "To edit a grown routine reuse its exact name and return its full new source. Seeds (start, ask-student) are immutable.",
         "applies() must turn False once the routine has done its job or it will starve everything after it.",
         "Routines must be generic: no task ids, package/domain names or module names from the traces, no expected "
@@ -492,7 +498,7 @@ class Teacher:
             peak=peak,
             attempt=attempt,
             prompt=(str(messages[-1].get("content", ""))[-1200:] if messages else ""),
-            response=(resp.choices[0].message.content or "")[:4000],
+            response=resp.choices[0].message.content or "",   # full text: it is the provenance of grown code
         )
         return resp.choices[0].message.content or ""
 
