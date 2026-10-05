@@ -1,0 +1,35 @@
+{
+  "name": "forced-patch",
+  "trigger_description": "Fires when the suite is still failing, at least four ask-student turns have produced no patch, and the routine has run fewer than twice; it re-runs the suite, asks one focused search/replace patch for the deepest source frame of the first failure, applies it, verifies, and reverts it if the suite got worse.",
+  "requested_permissions": {
+    "read": [
+      "**"
+    ],
+    "write": [
+      "src/**"
+    ],
+    "commands": [
+      "python -m pytest"
+    ],
+    "network": false
+  },
+  "step": 6,
+  "teacher": "deepseek-flash",
+  "runId": "20261005-082131-growth1",
+  "rationale": "All four failing window tasks show the same control pathology: the student runs the suite once, reads 5-10 files, makes ZERO edits (edits: 0 applied), and then ends its turn with a prose diagnosis (stopReason: done, fullRunAfterLastEdit: False). The diagnosis is usually right; the harness simply never converts it into a patch and never verifies anything. The fix is deterministic control code, not a better prompt for the tool-calling loop: a routine that detects 'many student turns, failing suite, no patch yet', re-runs pytest to kill stale failures, and then asks ONE short focused question (purpose 'patch') containing only the failing test, its assertion error and a +/-20-line excerpt of the deepest non-test traceback frame - a context size the 4B student handles well. The returned search/replace is applied via tools.edit_file, the suite is re-run through the normal state fields, and a patch that increases the number of failures is reverted so a good suite cannot be made worse. It runs at most twice per task and never fires before four read-only student turns, so tasks where the student edits normally (all gate tasks that pass today) are untouched.",
+  "functionsChanged": {
+    "added": [
+      "_excerpt",
+      "_pick_failure",
+      "_prompt",
+      "_record",
+      "_source_frame",
+      "applies",
+      "run"
+    ],
+    "modified": [],
+    "removed": [],
+    "other": true,
+    "edit": false
+  }
+}

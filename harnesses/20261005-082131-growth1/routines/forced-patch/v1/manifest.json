@@ -1,0 +1,101 @@
+{
+  "skill": "forced-patch",
+  "read": [
+    "**"
+  ],
+  "write": [
+    "src/**"
+  ],
+  "commands": [
+    "python -m pytest"
+  ],
+  "network": false,
+  "findings": [
+    {
+      "rule": "touches-tests",
+      "severity": "low",
+      "file": "routine.py",
+      "line": 34,
+      "detail": "references test files 'tests/'"
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "This is a routine for an automated coding-agent harness that, after the student agent makes several read-only turns with failing tests, forces a patch by asking the student model for a search/replace fix."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "It reads failure traceback frames from state and picks the deepest non-test frame, preferring paths not starting with 'tests/' or 'test_'."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "It calls tools.read_file(path) on the traceback file path and extracts a ~40-line excerpt around the failing line; this path comes from test output, so it can be an absolute or out-of-project path, meaning file reads are not confined to the working directory."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "It calls tools.run_tests() before and after editing, which executes the repository's test suite (indirect process execution / arbitrary code execution from tests)."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "It calls tools.edit_file(target, search, replace) to modify a source file chosen from the model's answer or the traceback path, with no sandbox or path restriction shown."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "It calls student.ask('patch', prompt), which sends the failing test name, error text, and source excerpt to an external model endpoint (network access via the model client, though not explicit in this file)."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "It reverts the patch by applying the reverse edit if the post-patch test failure count increases."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "It writes progress into state.notes (forced_patch_tries, forced_patch_at), state.patches, state.summary, and failure/test output fields."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No credential, secret, or environment-variable reads appear in this file."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No base64 decoding, string obfuscation, eval, or dynamic code construction appears in this file."
+    }
+  ],
+  "verdict": "ok",
+  "reasons": [],
+  "undeclared": {
+    "read": [],
+    "commands": [],
+    "network": false
+  },
+  "hosts": [],
+  "declaredFrom": "requested"
+}

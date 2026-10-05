@@ -1,0 +1,17 @@
+[
+  {
+    "name": "start",
+    "path": "routines/seed/start",
+    "source": "seed"
+  },
+  {
+    "name": "forced-patch",
+    "path": "harnesses/20261005-082131-growth1/routines/forced-patch/v1",
+    "source": "grown"
+  },
+  {
+    "name": "ask-student",
+    "path": "routines/seed/ask-student",
+    "source": "seed"
+  }
+]

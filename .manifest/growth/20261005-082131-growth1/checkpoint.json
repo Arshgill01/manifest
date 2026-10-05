@@ -1,0 +1,208 @@
+{
+ "runId": "20261005-082131-growth1",
+ "config": {
+  "profile": "v2",
+  "k": 4,
+  "r_max": 3,
+  "q": 1,
+  "budget": 10,
+  "max_opt_steps": 12,
+  "max_hours": 72.0,
+  "teacher_budget": 1.0,
+  "teacher_hours": "smart",
+  "ablate": [],
+  "fake_teacher": false,
+  "stub_runner": false,
+  "heldout_final": true,
+  "max_steps": 12,
+  "max_seconds": 1800,
+  "executor": "auto",
+  "train_ids": null,
+  "gate_ids": null,
+  "heldout_ids": null,
+  "heldout_profile": null,
+  "label": "growth1"
+ },
+ "step": 6,
+ "cursor": 11,
+ "window": [],
+ "traces": {},
+ "retired": [
+  "ratekeeper-03",
+  "slotbook-06"
+ ],
+ "solvedOnFill": [
+  "stockroom-04",
+  "ledgerly-03",
+  "stockroom-03",
+  "slotbook-02",
+  "ratekeeper-04",
+  "stockroom-01",
+  "ratekeeper-01"
+ ],
+ "harness": 1,
+ "versions": [
+  {
+   "k": 0,
+   "step": 0,
+   "changes": [],
+   "registry": "harnesses/20261005-082131-growth1/h0.json"
+  },
+  {
+   "k": 1,
+   "step": 6,
+   "changes": [
+    "forced-patch"
+   ],
+   "registry": "harnesses/20261005-082131-growth1/h1.json"
+  }
+ ],
+ "history": [
+  {
+   "step": 1,
+   "changes": [],
+   "outcome": "rejected",
+   "stage": "validate",
+   "reason": "propose: invalid teacher output after retry: changes.1: Value error, routine_py must define a top-level function applies(); changes.2: Value error, routine_py must define a top-level function applies(); changes.3: Value error, routine_py must define a top-level function applies() (validation: no attempt counted; policy changed before step 2)"
+  },
+  {
+   "step": 2,
+   "changes": [],
+   "outcome": "rejected",
+   "stage": "validate",
+   "reason": "propose: invalid teacher output after retry: not valid JSON: Unterminated string starting at at line 13 col 21"
+  },
+  {
+   "step": 3,
+   "changes": [],
+   "outcome": "rejected",
+   "stage": "validate",
+   "reason": "propose: invalid teacher output after retry: changes.1: Value error, routine_py is 154 lines; the limit is 150"
+  },
+  {
+   "step": 4,
+   "changes": [
+    "baseline-run",
+    "focused-patch",
+    "verify-patch"
+   ],
+   "outcome": "rejected",
+   "stage": "gate",
+   "reason": "gate success dropped (7 -> 6 of 14); rolled back"
+  },
+  {
+   "step": 5,
+   "changes": [
+    "baseline-run",
+    "locate-and-patch",
+    "verify-and-decide"
+   ],
+   "outcome": "rejected",
+   "stage": "gate",
+   "reason": "gate success dropped (6.5 -> 6 of 14, after re-running discordant tasks); rolled back"
+  },
+  {
+   "step": 6,
+   "changes": [
+    "forced-patch"
+   ],
+   "outcome": "accepted",
+   "stage": "accepted",
+   "reason": "repaired 2 window task(s); gate 8/14"
+  }
+ ],
+ "accepted": [
+  {
+   "step": 6,
+   "harness": 1,
+   "changes": [
+    "forced-patch"
+   ],
+   "solved": [
+    "ratekeeper-05",
+    "slotbook-05"
+   ]
+  }
+ ],
+ "teacherCost": 0.159114,
+ "stopReason": null,
+ "done": false,
+ "startedAt": 1791168692.988989,
+ "gateCache": {
+  "f7d3cbb115cece5e": {
+   "passed": 7,
+   "total": 14,
+   "avgModelCalls": 8.21,
+   "pass": [
+    "ledgerly-07",
+    "ratekeeper-12",
+    "slotbook-01",
+    "slotbook-15",
+    "stockroom-08",
+    "stockroom-10",
+    "stockroom-12"
+   ]
+  },
+  "b9498f5c88f90e62": {
+   "passed": 6,
+   "total": 14,
+   "avgModelCalls": 7.07,
+   "pass": [
+    "ratekeeper-12",
+    "slotbook-03",
+    "slotbook-15",
+    "stockroom-08",
+    "stockroom-10",
+    "stockroom-12"
+   ]
+  },
+  "a3b07a3860964c8a": {
+   "passed": 6,
+   "total": 14,
+   "avgModelCalls": 5.43,
+   "pass": [
+    "ratekeeper-12",
+    "slotbook-01",
+    "slotbook-15",
+    "stockroom-08",
+    "stockroom-10",
+    "stockroom-12"
+   ]
+  },
+  "191516897bfc0229": {
+   "passed": 8,
+   "total": 14,
+   "avgModelCalls": 8.0,
+   "pass": [
+    "ratekeeper-11",
+    "ratekeeper-12",
+    "slotbook-01",
+    "slotbook-03",
+    "slotbook-15",
+    "stockroom-08",
+    "stockroom-10",
+    "stockroom-12"
+   ]
+  },
+  "f7ac59d7580e00a0": {
+   "passed": 8,
+   "total": 14,
+   "avgModelCalls": 8.0,
+   "pass": [
+    "ratekeeper-11",
+    "ratekeeper-12",
+    "slotbook-01",
+    "slotbook-03",
+    "slotbook-15",
+    "stockroom-08",
+    "stockroom-10",
+    "stockroom-12"
+   ]
+  }
+ },
+ "gateSR": {
+  "passed": 8,
+  "total": 14,
+  "harness": 1
+ }
+}
