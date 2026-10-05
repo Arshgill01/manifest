@@ -62,7 +62,7 @@ class StreamConfig:
     max_opt_steps: int = 12    # optimisation steps (teacher calls that produced a candidate)
     max_hours: float = 72.0
     teacher_budget: float = 0.75
-    teacher_hours: str = "any"  # any | offpeak
+    teacher_hours: str = "smart"  # any | offpeak | smart
     ablate: list[str] = field(default_factory=list)
     fake_teacher: bool = False
     stub_runner: bool = False
@@ -481,7 +481,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-opt-steps", type=int, default=12)
     p.add_argument("--max-hours", type=float, default=72.0)
     p.add_argument("--teacher-budget", type=float, default=0.75, help="USD cap for this run")
-    p.add_argument("--teacher-hours", choices=("any", "offpeak"), default="any")
+    p.add_argument("--teacher-hours", choices=("any", "offpeak", "smart"), default="smart",
+                   help="smart: during DeepSeek peak hours wait only if off-peak is ≤ 60 min away")
     p.add_argument("--ablate", action="append", choices=ABLATIONS, default=[])
     p.add_argument("--fake-teacher", action="store_true")
     p.add_argument("--stub-runner", action="store_true")

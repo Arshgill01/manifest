@@ -147,6 +147,7 @@ def compress_failed_traces(
 # `routine.call` *after* a routine finishes, so inner events are buffered until it arrives.
 
 GRAPH_MAX_LINES = 110
+FN_MAX_DEPTH = 1   # show run() and the helpers it calls; deeper helpers only when they raise
 _FULL_SELECTORS = (None, "", "-", "*", "all")
 
 
@@ -179,10 +180,10 @@ def render_graph(events: list[dict], *, fn_level: bool = True, max_lines: int = 
     buf: list[str] = []
     for e in events:
         t = e.get("type")
-        if t == "fn.call" and fn_level:
+        if t == "fn.call" and fn_level and e.get("depth", 0) <= FN_MAX_DEPTH:
             args = ", ".join(f"{k}={v}" for k, v in (e.get("args") or {}).items())
             buf.append("  " * (e.get("depth", 0) + 1) + f"fn {e.get('fn')}({_clip(args, 200)})")
-        elif t == "fn.return" and fn_level:
+        elif t == "fn.return" and fn_level and (e.get("depth", 0) <= FN_MAX_DEPTH or e.get("exc")):
             out = f"raised {e['exc']}" if e.get("exc") else f"= {_clip(str(e.get('ret')), 200)}"
             buf.append("  " * (e.get("depth", 0) + 1) + f"<- {e.get('fn')} {out}")
         elif t == "tool.call":

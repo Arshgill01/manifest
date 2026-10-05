@@ -24,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LEDGER = ROOT / ".manifest" / "teacher-ledger.jsonl"
 PEAK_WINDOWS_UTC = ((1, 4), (6, 10))   # [start, end) hours, Monday–Friday
+SMART_WAIT_S = 3600                    # "smart" hours: wait for off-peak only when it is at most this far away
 
 
 class TeacherBudgetExceeded(RuntimeError):
@@ -109,16 +110,16 @@ class Budget:
         self.total_cap = total_cap if total_cap is not None else (float(env_total) if env_total else 2.0)
         self.run_cap = run_cap
         self.run_spent = 0.0
-        self.hours = hours  # "any" | "offpeak": wait for off-peak before each call
+        self.hours = hours  # "any" | "offpeak" (always wait) | "smart" (wait only if off-peak is ≤ SMART_WAIT away)
         self.sleep = sleep
 
     def estimate_usd(self, prompt_tokens: int = 40_000, out_tokens: int = 20_000) -> float:
         return self.schedule.offpeak.scaled(self.schedule.peak_multiplier).cost(prompt_tokens, out_tokens)
 
     def before_call(self, estimate: float | None = None) -> None:
-        if self.hours == "offpeak" and is_peak():
-            until = next_offpeak()
-            wait = max(0.0, (until - datetime.now(timezone.utc)).total_seconds())
+        until = next_offpeak() if self.hours in ("offpeak", "smart") and is_peak() else None
+        wait = max(0.0, (until - datetime.now(timezone.utc)).total_seconds()) if until else 0.0
+        if until and (self.hours == "offpeak" or wait <= SMART_WAIT_S):
             print(f"[teacher] peak hours; waiting {wait / 60:.0f} min for off-peak ({until:%H:%M} UTC)", flush=True)
             self.sleep(wait + 5)
         est = self.estimate_usd() if estimate is None else estimate

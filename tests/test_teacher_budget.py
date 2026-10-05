@@ -55,3 +55,14 @@ def test_real_teacher_gets_a_budget_by_default():
     from harness.teacher import Teacher
     t = Teacher(EventLog(), api_key="sk-test", model="deepseek-flash")   # builds a client, makes no call
     assert t.budget is not None
+
+
+def test_smart_hours_wait_only_when_offpeak_is_near(tmp_path, monkeypatch):
+    from datetime import timedelta
+    import harness.budget as hb
+    monkeypatch.setattr(hb, "is_peak", lambda now=None: True)
+    for minutes, should_wait in ((30, True), (180, False)):
+        monkeypatch.setattr(hb, "next_offpeak", lambda now=None, m=minutes: datetime.now(timezone.utc) + timedelta(minutes=m))
+        slept = []
+        Budget(total_cap=1.0, ledger=Ledger(tmp_path / "l.jsonl"), hours="smart", sleep=slept.append).before_call(estimate=0.01)
+        assert bool(slept) == should_wait
