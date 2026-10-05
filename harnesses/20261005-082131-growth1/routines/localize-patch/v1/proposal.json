@@ -1,0 +1,37 @@
+{
+  "name": "localize-patch",
+  "trigger_description": "At least one failing test has a traceback containing only tests/ frames (no source frame), the suite still fails, and the student has had a few tool-calling turns; runs up to 3 bounded patch attempts, each localising the module under test from the test file's imports and applying the student's search/replace to the candidate file that really contains it.",
+  "requested_permissions": {
+    "read": [
+      "**"
+    ],
+    "write": [
+      "src/**"
+    ],
+    "commands": [
+      "python -m pytest"
+    ],
+    "network": false
+  },
+  "step": 11,
+  "teacher": "deepseek-flash",
+  "runId": "20261005-082131-growth1",
+  "rationale": "Window failure mode shared by ledgerly-10/11/13: the failing assertion's traceback lives entirely in tests/, so `_source_frame` returns {} and the student either invents a non-existent path (ledgerly-10 -> warden block, ledgerly-13 -> 'no such file') or reads files and declares done without editing (ledgerly-11, ledgerly-10). forced-patch then asks with an empty snippet. I add one generic routine, `localize-patch`, that only fires on tracebacks with no source frame, localises the module under test from the failing test file's imports plus the repo file list, shows the test body and candidate files, repairs a wrong `file` answer by applying the search block to whichever candidate verbatim contains it, and re-runs/reverts. Three bounded attempts also prevent the premature stopReason=done seen in ledgerly-10/11. forced-patch is left untouched to avoid the gate regressions at steps 4/5/10.",
+  "functionsChanged": {
+    "added": [
+      "_blind",
+      "_candidates",
+      "_is_test",
+      "_locate",
+      "_modules",
+      "_prompt",
+      "_test_file",
+      "applies",
+      "run"
+    ],
+    "modified": [],
+    "removed": [],
+    "other": true,
+    "edit": false
+  }
+}

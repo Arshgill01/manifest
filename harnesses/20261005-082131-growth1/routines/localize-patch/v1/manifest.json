@@ -1,0 +1,178 @@
+{
+  "skill": "localize-patch",
+  "read": [
+    "**"
+  ],
+  "write": [
+    "src/**"
+  ],
+  "commands": [
+    "python -m pytest"
+  ],
+  "network": false,
+  "findings": [
+    {
+      "rule": "touches-tests",
+      "severity": "low",
+      "file": "routine.py",
+      "line": 8,
+      "detail": "references test files 'tests/'"
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Implements routine 'localize-patch' that suggests and applies a source-code patch when a test failure's traceback points only at test files."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Limits itself to 3 attempts, tracked in state.notes['lp_tries']."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Only runs after routine 'ask-student' has run at least 3 times."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Filters failures to those whose traceback frames contain no non-test file ('blind' failures)."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Treats paths starting with 'tests/' or 'test_' as test files."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Extracts the test file path from traceback frames."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Parses 'import' and 'from ... import' lines from the failing test to infer candidate source modules."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Maps imported module names to files in state.files, including .py and __init__.py matches, capped at 4 candidates."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Reads the failing test file and up to 70 lines of each candidate source file."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Builds a prompt asking student.ask('patch', ...) to choose a candidate file and give a verbatim search/replace block, with instruction never to edit tests/."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Calls student.ask, which may perform an external model/service/network call depending on the student implementation."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Locates the real target by checking which candidate file contains the student-provided search string."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Restricts the edit target to candidate files or the located file."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Calls tools.edit_file(target, search, replace) to modify source code."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Calls tools.run_tests() before and after the edit and records pass/fail counts."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Marks state.done when the suite passes after patching."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "If the post-patch failure count increases, attempts to revert by calling tools.edit_file(target, replace, search) and marks the patch reverted."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Appends patch records to state.patches."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Reads and edits file paths supplied via state.failures, state.files, and student output without restricting them to the working directory."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Executes the project's test suite through tools.run_tests(), i.e., process/code execution of repository tests."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Does not directly read environment variables, credentials, secrets, open network sockets, use subprocess, or use eval/exec in the shown code."
+    }
+  ],
+  "verdict": "ok",
+  "reasons": [],
+  "undeclared": {
+    "read": [],
+    "commands": [],
+    "network": false
+  },
+  "hosts": [],
+  "declaredFrom": "requested"
+}
