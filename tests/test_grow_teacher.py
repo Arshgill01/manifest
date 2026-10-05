@@ -101,7 +101,7 @@ def test_routine_source_checks():
     with pytest.raises(ValueError, match="NAME"):
         check_routine_source(ok, "y")
     with pytest.raises(ValueError, match="lines"):
-        check_routine_source(ok + "\n".join(f"a{i} = {i}" for i in range(200)), "x")
+        check_routine_source(ok + "\n".join(f"a{i} = {i}" for i in range(160)), "x")
     with pytest.raises(ValueError, match="parse"):
         check_routine_source("def (:", "x")
     with pytest.raises(ValueError, match="run"):
@@ -165,3 +165,18 @@ def test_truncated_answer_is_retried_without_resending_it_and_effort_is_low():
     assert t.summarize_code("x = 1") == ["reads nothing"]
     assert seen[0]["reasoning_effort"] == "low"
     assert all(m["role"] != "assistant" for m in seen[1]["messages"]) and "cut off" in seen[1]["messages"][-1]["content"]
+
+
+def test_comments_and_docstrings_do_not_count_and_fences_are_stripped():
+    from harness.teacher import Change
+    body = 'NAME = "x"\n"""doc\n' + "more doc\n" * 200 + '"""\n' + "# c\n" * 50 + \
+        "def applies(state):\n    return True\n\ndef run(state, tools, student):\n    return state\n"
+    with pytest.raises(ValueError, match="hard ceiling"):
+        check_routine_source(body, "x")            # >300 total lines
+    small = 'NAME = "x"\n"""doc\n' + "more doc\n" * 100 + '"""\n' + "# c\n" * 40 + \
+        "def applies(state):\n    return True\n\ndef run(state, tools, student):\n    return state\n"
+    check_routine_source(small, "x")               # 150+ raw lines but only 5 code lines
+    with pytest.raises(ValueError, match="line 1: '/\\* banner \\*/'"):
+        check_routine_source("/* banner */\n" + small, "x")
+    c = Change(name="x", trigger_description="t", routine_py="```python\n" + small + "```", skill_md="s")
+    assert c.routine_py.startswith('NAME = "x"')

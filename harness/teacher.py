@@ -25,7 +25,8 @@ from harness.log import ROOT, EventLog
 
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 SEED_NAMES = ("start", "ask-student")
-MAX_ROUTINE_LINES = 200   # v1: 150; the teacher repeatedly overshot 150 by a few lines (it can't count lines), aim stays 150
+MAX_ROUTINE_LINES = 150   # code lines (non-blank, non-comment, docstrings excluded): the teacher can't count raw lines
+MAX_TOTAL_LINES = 300     # hard ceiling on the whole file, comments included
 TARGET_ROUTINE_LINES = 150
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -91,7 +92,7 @@ class Proposal(BaseModel):
 
 
 class Change(BaseModel):
-    """One routine added or edited by a v2 change set (SPEC §5.3)."""
+    """One routine added or edited by a v2 change set (SPEC §5.3). A markdown fence around routine_py is stripped."""
 
     name: str
     trigger_description: str
@@ -101,6 +102,7 @@ class Change(BaseModel):
 
     @model_validator(mode="after")
     def _check(self) -> "Change":
+        self.routine_py = strip_fences(self.routine_py)
         if not NAME_RE.match(self.name) or len(self.name) > 64:
             raise ValueError(f"name {self.name!r} must be kebab-case [a-z0-9-], ≤64 chars")
         if self.name in SEED_NAMES:
@@ -126,16 +128,41 @@ class ChangeSet(BaseModel):
         return self
 
 
+def code_lines(tree: ast.Module, src: str) -> int:
+    """Non-blank, non-comment source lines, docstrings excluded."""
+    doc_lines: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(getattr(first, "value", None), ast.Constant) \
+                    and isinstance(first.value.value, str):
+                doc_lines.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+    return sum(1 for i, line in enumerate(src.splitlines(), 1)
+               if line.strip() and not line.strip().startswith("#") and i not in doc_lines)
+
+
+def strip_fences(src: str) -> str:
+    """Drop a markdown code fence around a routine (a formatting slip, not code)."""
+    m = re.match(r"^\s*```(?:python|py)?\s*\n(.*?)\n```\s*$", src or "", re.S)
+    return m.group(1) if m else src
+
+
 def check_routine_source(src: str, name: str) -> None:
-    """Raise ValueError unless `src` is a ≤150-line module with NAME == name, applies(state), run(state, tools, student)."""
-    n_lines = len(src.strip().splitlines())
-    if n_lines > MAX_ROUTINE_LINES:
-        raise ValueError(f"routine_py is {n_lines} lines; the hard limit is {MAX_ROUTINE_LINES}. Shorten it: drop "
-                         f"docstrings and comments, merge small helpers, or move part of the logic to a later step")
+    """Raise ValueError unless `src` is a module of ≤150 code lines (≤300 total) with NAME == name,
+    applies(state), run(state, tools, student)."""
+    total = len(src.strip().splitlines())
+    if total > MAX_TOTAL_LINES:
+        raise ValueError(f"routine_py is {total} lines in total; the hard ceiling is {MAX_TOTAL_LINES}")
     try:
         tree = ast.parse(src)
     except SyntaxError as e:
-        raise ValueError(f"routine_py does not parse: {e.msg} (line {e.lineno})") from None
+        bad = (src.splitlines()[e.lineno - 1] if e.lineno and e.lineno <= len(src.splitlines()) else "")[:120]
+        raise ValueError(f"routine_py does not parse: {e.msg} (line {e.lineno}: {bad!r}). routine_py must be plain "
+                         f"Python source: no banners, markdown fences or other languages") from None
+    n_code = code_lines(tree, src)
+    if n_code > MAX_ROUTINE_LINES:
+        raise ValueError(f"routine_py has {n_code} code lines (non-blank, non-comment, docstrings excluded); the limit "
+                         f"is {MAX_ROUTINE_LINES}. Merge small helpers or move part of the logic to a later step")
     names: dict[str, Any] = {}
     funcs: dict[str, ast.FunctionDef] = {}
     for node in tree.body:
@@ -299,8 +326,8 @@ def render_change_messages(context: dict) -> list[dict]:
         "counts 1; other changed module-level code in an edited routine counts 1).",
         "Never delete an existing routine or an existing top-level function (you may stop using it).",
         "Each routine_py is a complete module: NAME = \"<name>\", def applies(state) -> bool, "
-        f"def run(state, tools, student) returning the state; aim for ≤{TARGET_ROUTINE_LINES} lines (hard limit "
-        f"{MAX_ROUTINE_LINES}, counted including docstrings and comments); stdlib + pydantic only.",
+        f"def run(state, tools, student) returning the state; at most {MAX_ROUTINE_LINES} code lines (blank lines, "
+        f"comments and docstrings don't count; {MAX_TOTAL_LINES} lines in total); plain Python, stdlib + pydantic only.",
         "Every entry in `changes` is a standalone routine module with its own NAME, applies(state) and run(state, tools, "
         "student). There are no helper/library modules and routines cannot import each other: put helpers inside the "
         "routine that uses them (copy them if two routines need them; that costs edit budget).",
