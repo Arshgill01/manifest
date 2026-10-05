@@ -4,7 +4,8 @@ smoke-stream|uv run python -m growth.stream --profile full --train-tasks ledgerl
 det-check|uv run python -m growth.eval --split heldout --profile full --tasks csvflow-01,csvflow-02,ledgerly-01 --mode baseline --round 0 --force --label det-check
 det-check2|uv run python -m growth.eval --split heldout --profile full --tasks csvflow-01,csvflow-02,ledgerly-01 --mode baseline --round 0 --force --label det-check2
 growth1|uv run python -m growth.stream --profile v2 --teacher-budget 1.00 --label growth1
-e1-baseline-v2new-heldout|uv run python -m growth.eval --split heldout --profile v2new --mode baseline --round 0 --label e1-baseline-v2new-heldout
+e1-v2-heldout-x3|uv run python -m growth.eval --split heldout --profile v2 --mode baseline --round 0 --repeat 3 --label e1-v2-heldout-x3
+e5-growth1-heldout-reps|uv run python -m growth.eval --split heldout --profile v2 --mode manifest --registry harnesses/20261005-082131-growth1/registry.json --round 99 --repeat 2 --rep-offset 1 --label e5-growth1-heldout-reps
 e3-hackathon-v2-heldout|uv run python -m growth.eval --split heldout --profile v2 --mode manifest --registry routines/registry.json --round 1 --label e3-hackathon-v2-heldout
 e2-h0-v2-heldout|uv run python -m growth.eval --split heldout --profile v2 --mode manifest --registry harnesses/seed/registry.json --round 0 --label e2-h0-v2-heldout
 e1-baseline-v2new-gate-train|uv run python -m growth.eval --split gate,train --profile v2new --mode baseline --round 0 --label e1-baseline-v2new-gate-train
