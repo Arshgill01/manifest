@@ -159,6 +159,9 @@ def run_one(task_id: str, *, split: str | None, mode: str, round: int, log: Even
                                      max_steps=max_steps, max_seconds=max_seconds, executor=executor) or stats
             except Exception as exc:  # a crashing harness is a failed task, not a crashed eval
                 error = f"{type(exc).__name__}: {exc}"
+            finally:
+                if mode in HARNESS_MODES:
+                    unload_student()
             verdict = judge(work, pristine, expected_total)
         ms = int((time.monotonic() - t0) * 1000)
         end = log.emit(
@@ -190,6 +193,22 @@ INFRA_ERRORS = ("ConnectionError", "RemoteProtocolError", "ConnectError", "ReadE
 def is_infra_error(error: str | None) -> bool:
     """The machine failed (Ollama killed / restarting), not the student. Such outcomes are re-run, never scored."""
     return bool(error) and any(m in error for m in INFRA_ERRORS)
+
+
+def unload_student() -> None:
+    """Unload the student after every task. Ollama's runner for this hybrid model keeps growing across requests
+    (context checkpoints etc.: 6.6 GB RSS + 5.7 GB swap after 3 h on an 8 GB VM, one OOM kill); a fresh runner per
+    task costs ~13 s of load time and keeps tasks independent. MANIFEST_UNLOAD_EACH_TASK=0 disables it."""
+    if os.environ.get("MANIFEST_UNLOAD_EACH_TASK", "1") == "0":
+        return
+    import urllib.request
+    host = (os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
+    body = json.dumps({"model": STUDENT, "keep_alive": 0}).encode()
+    try:
+        urllib.request.urlopen(urllib.request.Request(f"{host}/api/generate", body, {"Content-Type": "application/json"}),
+                               timeout=60).read()
+    except Exception:
+        pass
 
 
 def wait_for_ollama(max_wait: float = 600.0) -> bool:
