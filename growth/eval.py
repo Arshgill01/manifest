@@ -132,17 +132,17 @@ def _run_selftest(mode: str, work: Path, meta: dict) -> dict:
 
 def run_one(task_id: str, *, split: str | None, mode: str, round: int, log: EventLog,
             registry: str | None, run_dir: Path, max_steps: int, max_seconds: int,
-            executor=None) -> dict:
+            executor=None, rep: int = 0) -> dict:
     index = load_index()
     meta = index[task_id]
     pristine = GENERATED / task_id
-    work = run_dir / task_id
+    work = run_dir / (task_id if rep == 0 else f"{task_id}.rep{rep}")
     if work.exists():
         shutil.rmtree(work)
     shutil.copytree(pristine, work, ignore=IGNORE)
     expected_total = len(meta["failingTests"]) + meta["passingTests"]
 
-    with log.scope(round=round, taskId=task_id, split=split):
+    with log.scope(round=round, taskId=task_id, split=split, **({"rep": rep} if rep else {})):
         start_idx = len(log.events or [])
         log.emit("task.start", domain=meta["domain"], bugShape=meta["bugShape"], mode=mode)
         t0 = time.monotonic()
@@ -226,8 +226,12 @@ def wait_for_ollama(max_wait: float = 600.0) -> bool:
 
 def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str | None = None,
               task_ids: list[str] | None = None, profile: str = "core", max_steps: int = MAX_STEPS,
-              max_seconds: int = MAX_SECONDS, executor=None, use_cache: bool = True) -> dict:
-    """Run `mode` over a split.
+              max_seconds: int = MAX_SECONDS, executor=None, use_cache: bool = True, repeat: int = 1,
+              rep_offset: int = 0) -> dict:
+    """Run `mode` over a split, `repeat` times (repetitions rep_offset.. are tagged `rep` on every event).
+
+    The student is not bit-deterministic at temperature 0 on CPU (KV-prefix reuse changes the numerics), so
+    headline comparisons average R repetitions per task, as the paper does (R = 3).
 
     Round-0 baseline outcomes are cached per task under a key of everything that changes a result (student
     model + digest + options, budget, host, BASELINE_VERSION), so a long baseline survives crashes and is
@@ -239,8 +243,9 @@ def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str
 
     run_dir = WORK / (log.run_id or f"adhoc-{int(time.time())}") / f"r{round}-{split}"
     results = []
-    for tid in ids:
-        cfile = cdir / f"{tid}.json" if cdir else None
+    jobs = [(rep, tid) for rep in range(rep_offset, rep_offset + repeat) for tid in ids]
+    for rep, tid in jobs:
+        cfile = cdir / f"{tid}.json" if cdir and rep == 0 else None
         if cfile and use_cache and cfile.exists():
             outcome = json.loads(cfile.read_text())
             for e in outcome["events"]:
@@ -248,14 +253,15 @@ def run_split(split: str, *, mode: str, round: int, log: EventLog, registry: str
             results.append(outcome)
             continue
         outcome = run_one(tid, split=split, mode=mode, round=round, log=log, registry=registry, run_dir=run_dir,
-                          max_steps=max_steps, max_seconds=max_seconds, executor=executor)
+                          max_steps=max_steps, max_seconds=max_seconds, executor=executor, rep=rep)
         for _ in range(2):  # infrastructure failure (e.g. Ollama OOM-killed): wait for it, re-run from a fresh copy
             if not is_infra_error(outcome.get("error")):
                 break
             print(f"[eval] {tid}: infrastructure error ({outcome['error'][:80]}); waiting for Ollama and re-running", flush=True)
             wait_for_ollama()
             outcome = run_one(tid, split=split, mode=mode, round=round, log=log, registry=registry, run_dir=run_dir,
-                              max_steps=max_steps, max_seconds=max_seconds, executor=executor)
+                              max_steps=max_steps, max_seconds=max_seconds, executor=executor, rep=rep)
+        outcome["rep"] = rep
         if cfile and not outcome.get("error") and not cfile.exists():  # --force re-runs never overwrite the cache
             cfile.parent.mkdir(parents=True, exist_ok=True)
             cfile.write_text(json.dumps(outcome, default=str))
@@ -299,6 +305,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--executor", choices=("auto", "sandbox", "inprocess"), default="auto",
                     help="manifest mode: run grown routines in Warden's kernel sandbox (auto = when available)")
     ap.add_argument("--force", action="store_true", help="ignore the round-0 cache")
+    ap.add_argument("--repeat", type=int, default=1, help="run every task R times (tagged rep=0..R-1)")
+    ap.add_argument("--rep-offset", type=int, default=0, help="first repetition index (add reps to an earlier run)")
     ap.add_argument("--label", default=None)
     args = ap.parse_args(argv)
     known = json.loads((TASKS / "splits.json").read_text())["profiles"]
@@ -323,7 +331,8 @@ def main(argv: list[str] | None = None) -> int:
         explicit = ids if (args.tasks or args.limit) else None
         res = run_split(split, mode=args.mode, round=args.round, log=log, registry=args.registry,
                         task_ids=explicit, profile=args.profile, max_steps=args.max_steps,
-                        max_seconds=args.max_seconds, executor=executor, use_cache=not args.force)
+                        max_seconds=args.max_seconds, executor=executor, use_cache=not args.force,
+                        repeat=args.repeat, rep_offset=args.rep_offset)
         summary[split] = {"passed": res["passed"], "total": res["total"], "avgModelCalls": res["avgModelCalls"]}
         print(f"\n{split}: {res['passed']}/{res['total']} passed, avg model calls {res['avgModelCalls']}")
         for r in res["results"]:

@@ -44,3 +44,14 @@ def test_results_render_from_a_log(tmp_path, monkeypatch):
     cfg = {"reference": "E1", "experiments": [{"id": "E1", "label": "base", "log": "r.jsonl"}]}
     text = gr.render(cfg, tmp_path / "experiments.json")
     assert "| E1 base | 1/2 |" in text and "`csvflow-01`" in text
+
+
+def test_repetitions_are_averaged_per_task():
+    from growth.results import aggregate
+    runs = {("heldout", "t1", 0): {"pass": True, "calls": 4, "promptTokens": 10, "outTokens": 1, "sec": 10.0, "label": "pass"},
+            ("heldout", "t1", 1): {"pass": False, "calls": 8, "promptTokens": 30, "outTokens": 3, "sec": 30.0, "label": "process"},
+            ("heldout", "t2", 0): {"pass": False, "calls": 6, "promptTokens": 0, "outTokens": 0, "sec": 5.0, "label": "process"}}
+    agg = aggregate(runs)
+    assert agg[("heldout", "t1")]["pass"] == 0.5 and agg[("heldout", "t1")]["calls"] == 6
+    assert agg[("heldout", "t1")]["pass0"] is True and agg[("heldout", "t1")]["reps"] == 2
+    assert agg[("heldout", "t2")]["reps"] == 1

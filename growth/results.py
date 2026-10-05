@@ -32,8 +32,8 @@ def _splits() -> dict:
     return json.loads((ROOT / "tasks" / "splits.json").read_text())
 
 
-def task_records(events: list[dict], splits: list[str] | None = None) -> dict[tuple[str, str], dict]:
-    """(split, taskId) -> per-task record; the last completed run of a task in the log wins."""
+def task_records(events: list[dict], splits: list[str] | None = None) -> dict[tuple[str, str, int], dict]:
+    """(split, taskId, rep) -> per-run record; the last completed run of a (task, rep) in the log wins."""
     index = _index()
     out: dict[tuple[str, str], dict] = {}
     cur: dict[tuple[str, str], list[dict]] = {}
@@ -41,7 +41,7 @@ def task_records(events: list[dict], splits: list[str] | None = None) -> dict[tu
         tid, split = e.get("taskId"), e.get("split")
         if not tid or (splits and split not in splits):
             continue
-        key = (split, tid)
+        key = (split, tid, e.get("rep", 0))
         if e["type"] == "task.start":
             cur[key] = [e]
             continue
@@ -56,7 +56,7 @@ def task_records(events: list[dict], splits: list[str] | None = None) -> dict[tu
         student = [x for x in evs if x["type"] == "model.call" and x.get("role") == "student"]
         meta = index.get(tid, {})
         rec = {
-            "taskId": tid, "split": split, "domain": meta.get("domain"), "bugShape": meta.get("bugShape"),
+            "taskId": tid, "split": split, "rep": e.get("rep", 0), "domain": meta.get("domain"), "bugShape": meta.get("bugShape"),
             "pass": bool(e.get("pass")), "calls": e.get("modelCalls", len(student)), "steps": e.get("steps"),
             "promptTokens": sum(x.get("promptTokens") or 0 for x in student),
             "outTokens": sum(x.get("outTokens") or 0 for x in student),
@@ -73,6 +73,24 @@ def task_records(events: list[dict], splits: list[str] | None = None) -> dict[tu
     return out
 
 
+def aggregate(runs: dict[tuple[str, str, int], dict]) -> dict[tuple[str, str], dict]:
+    """Average repetitions per task (the paper's R runs): pass = mean pass rate, numbers = means; the CI is then a
+    task-level cluster bootstrap over these per-task means. `pass0` keeps repetition 0 for McNemar."""
+    by: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for (split, tid, rep), r in sorted(runs.items(), key=lambda kv: kv[0][2]):
+        by[(split, tid)].append(r)
+    out = {}
+    for k, rs in by.items():
+        n = len(rs)
+        agg = dict(rs[0])
+        agg.update(reps=n, passes=[r["pass"] for r in rs], pass0=rs[0]["pass"],
+                   **{f: sum(r[f] for r in rs) / n for f in ("calls", "promptTokens", "outTokens", "sec")})
+        agg["pass"] = sum(r["pass"] for r in rs) / n
+        agg["label"] = "pass" if agg["pass"] == 1 else next((r["label"] for r in rs if not r["pass"]), "?")
+        out[k] = agg
+    return out
+
+
 def _start(events: list[dict]) -> dict:
     return next((e for e in events if e["type"] == "run.start"), {})
 
@@ -80,14 +98,17 @@ def _start(events: list[dict]) -> dict:
 def _row(label: str, recs: list[dict], expected: int) -> str:
     passes = [r["pass"] for r in recs]
     n = len(recs)
-    sr = fmt_ci(*success_ci(passes), pct=True) if n else "–"
+    sr = fmt_ci(*bootstrap_ci(passes), pct=True) if n else "–"
     calls = fmt_ci(*bootstrap_ci([r["calls"] for r in recs])) if n else "–"
     ptok = f"{sum(r['promptTokens'] for r in recs) / n / 1000:.1f}k" if n else "–"
     otok = f"{sum(r['outTokens'] for r in recs) / n:.0f}" if n else "–"
     sec = fmt_ci(*bootstrap_ci([r["sec"] for r in recs]), digits=0) if n else "–"
     stops = Counter(r["stop"] for r in recs)
     done = "" if n == expected else f" ({n}/{expected} run)"
-    return (f"| {label}{done} | {sum(passes)}/{n} | {sr} | {calls} | {ptok} | {otok} | {sec} | "
+    reps = max((r.get("reps", 1) for r in recs), default=1)
+    tag = f" ×{reps}" if reps > 1 else ""
+    shown = f"{sum(passes):g}" if reps == 1 else f"{sum(passes):.2f}"
+    return (f"| {label}{done}{tag} | {shown}/{n} | {sr} | {calls} | {ptok} | {otok} | {sec} | "
             + ", ".join(f"{k or '?'} {v}" for k, v in stops.most_common()) + " |")
 
 
@@ -107,7 +128,7 @@ def render(cfg: dict, cfg_path: Path) -> str:
                 recs.update(task_records(e, x.get("splits")))
         if not ev:
             continue
-        exps.append({**x, "events": ev, "start": _start(ev), "recs": recs})
+        exps.append({**x, "events": ev, "start": _start(ev), "recs": aggregate(recs), "runs": recs})
     ref = next((x for x in exps if x["id"] == cfg.get("reference")), exps[0] if exps else None)
 
     L = ["# Results (v2)", "",
@@ -142,8 +163,8 @@ def render(cfg: dict, cfg_path: Path) -> str:
     # ---- paired comparisons against the reference
     if ref:
         L += [f"## Paired comparisons vs {ref['id']} ({ref['label']})", "",
-              "Same tasks, same budget. Δ = other − reference. b = only the reference passes, c = only the other passes; "
-              "p = exact two-sided McNemar.", "",
+              "Same tasks, same budget. Δ = other − reference, on per-task mean pass rates (averaged over repetitions). "
+              "b = only the reference passes, c = only the other passes, p = exact two-sided McNemar (both on repetition 0).", "",
               "| Split | Harness | n | Δ success [95% CI] | b / c | p | Δ calls / task [95% CI] | Δ seconds / task [95% CI] |",
               "|---|---|---|---|---|---|---|---|"]
         for split in SPLITS:
@@ -157,7 +178,7 @@ def render(cfg: dict, cfg_path: Path) -> str:
                 if not common:
                     continue
                 d, lo, hi, n = paired_ci({t: float(a[t]["pass"]) for t in common}, {t: float(b[t]["pass"]) for t in common})
-                _, oa, ob, _ = discordant({t: a[t]["pass"] for t in common}, {t: b[t]["pass"] for t in common})
+                _, oa, ob, _ = discordant({t: a[t]["pass0"] for t in common}, {t: b[t]["pass0"] for t in common})
                 dc = paired_ci({t: a[t]["calls"] for t in common}, {t: b[t]["calls"] for t in common})
                 ds = paired_ci({t: a[t]["sec"] for t in common}, {t: b[t]["sec"] for t in common})
                 L.append(f"| {split} | {x['id']} {x['label']} | {n} | {100 * d:+.0f} pp [{100 * lo:+.0f}, {100 * hi:+.0f}] | "
@@ -178,8 +199,13 @@ def render(cfg: dict, cfg_path: Path) -> str:
             cells = []
             for x in cols:
                 r = x["recs"].get((split, t))
-                cells.append("·" if r is None else
-                             (f"**pass** {r['calls']}c {r['sec']:.0f}s" if r["pass"] else f"fail ({r['label']}) {r['calls']}c {r['sec']:.0f}s"))
+                if r is None:
+                    cells.append("·")
+                elif r.get("reps", 1) > 1:
+                    cells.append(f"{sum(r['passes'])}/{r['reps']} pass, {r['calls']:.1f}c {r['sec']:.0f}s")
+                else:
+                    cells.append(f"**pass** {r['calls']:.0f}c {r['sec']:.0f}s" if r["pass"] else
+                                 f"fail ({r['label']}) {r['calls']:.0f}c {r['sec']:.0f}s")
             L.append(f"| `{t}` | {idx.get(t, {}).get('bugShape', '?')} | " + " | ".join(cells) + " |")
         L.append("")
 
@@ -190,7 +216,7 @@ def render(cfg: dict, cfg_path: Path) -> str:
           "| Harness | split | process | knowledge | format | budget |", "|---|---|---|---|---|---|"]
     for x in exps:
         for split in SPLITS:
-            labs = Counter(r["label"] for (s, _), r in x["recs"].items() if s == split and not r["pass"])
+            labs = Counter(r["label"] for (s, _, _), r in x["runs"].items() if s == split and not r["pass"])
             if labs:
                 L.append(f"| {x['id']} | {split} | {labs.get('process', 0)} | {labs.get('knowledge', 0)} | "
                          f"{labs.get('format', 0)} | {labs.get('budget', 0)} |")
@@ -213,10 +239,10 @@ def render(cfg: dict, cfg_path: Path) -> str:
     # ---- automatic notes
     notes = []
     for x in exps:
-        n_t = sum(1 for r in x["recs"].values() if r["stop"] in ("TaskTimeout", "timeout"))
+        n_t = sum(1 for r in x["runs"].values() if r["stop"] in ("TaskTimeout", "timeout"))
         if n_t:
             notes.append(f"{x['id']}: {n_t} task(s) hit the {st.get('maxSeconds', 1800)} s safety cap.")
-        n_c = sum(1 for r in x["recs"].values() if r["cached"])
+        n_c = sum(1 for r in x["runs"].values() if r["cached"])
         if n_c:
             notes.append(f"{x['id']}: {n_c} task outcome(s) replayed from the round-0 cache (same config key).")
     if notes:
