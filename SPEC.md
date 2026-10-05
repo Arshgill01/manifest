@@ -166,6 +166,12 @@ while stream not exhausted or W ≠ ∅:
     accept: h ← cand; h_gate ← cand; SR_gate ← SR_G(cand); W ← U with fresh traces, a+1, retire a ≥ R_max
 h* ← h; evaluate h* once on held-out
 ```
+**Gate recheck (our addition, measured need):** the CPU student is not bit-deterministic at temperature 0
+(repeated runs diverge after 2–3 calls and flip pass/fail), so a single-run gate is close to a coin flip near
+the threshold. Gate tasks on which candidate and checkpoint disagree are re-run once with both harnesses and the
+rule SR(cand) ≥ SR(checkpoint) is applied to the averaged outcomes (`--no-gate-recheck` = paper-exact). Growth
+run #1 used the single-run gate up to step 4 and the recheck from step 5.
+
 Rejections never touch `harnesses/<run>/` beyond the candidate's staging dir; acceptance writes version
 `h<t>/` and moves `current`. Stop early on `--max-steps`, teacher budget, or `--max-hours`; all resumable
 from `.manifest/growth/<run>/checkpoint.json`.

@@ -61,6 +61,7 @@ class StreamConfig:
     budget: int = 10           # edit budget L        [paper: 10]
     max_opt_steps: int = 12    # optimisation steps = candidates that passed validation and were evaluated
     max_teacher_steps: int = 30  # runaway guard: proposals of any kind (invalid ones included)
+    gate_recheck: bool = True    # re-run gate tasks the two harnesses disagree on (student nondeterminism)
     max_hours: float = 72.0
     teacher_budget: float = 0.75
     teacher_hours: str = "smart"  # any | offpeak | smart
@@ -369,16 +370,35 @@ class Stream:
             after = self.gate(creg, cand_entries, t)
             prev = self.state["gateCache"].get(registry_key(entries), {})
             regress = sorted(set(prev.get("pass", [])) - set(after["pass"]))
-            accepted = after["passed"] >= before["passed"]
+            gained = sorted(set(after["pass"]) - set(prev.get("pass", [])))
+            cand_score, ckpt_score = float(after["passed"]), float(before["passed"])
+            recheck = None
+            if self.cfg.gate_recheck and (regress or gained) and prev:
+                # Variance reduction (our addition, SPEC §5.2): the CPU student is not deterministic, so tasks on
+                # which the two harnesses disagree are re-run once with BOTH and scored by their mean outcome.
+                disc = regress + gained
+                say(f"step {t}: gate rechecks {len(disc)} discordant task(s) with both harnesses: {disc}")
+                r_ck = self.run("gate", disc, self.registry_path(), t)
+                r_cd = self.run("gate", disc, creg, t)
+                ck2 = {r["taskId"] for r in r_ck["results"] if r["pass"]}
+                cd2 = {r["taskId"] for r in r_cd["results"] if r["pass"]}
+                ckpt_score = before["passed"] - len(regress) + sum((t_ in prev["pass"]) + (t_ in ck2) for t_ in disc) / 2
+                cand_score = after["passed"] - len(gained) + sum((t_ in after["pass"]) + (t_ in cd2) for t_ in disc) / 2
+                recheck = {"tasks": disc, "checkpointPasses": sorted(ck2), "candidatePasses": sorted(cd2),
+                           "checkpointScore": ckpt_score, "candidateScore": cand_score}
+            accepted = cand_score >= ckpt_score
             with self.log.scope(round=t, taskId=None, split="gate"):
                 self.log.emit("gate.result", routine=", ".join(names), accepted=accepted, gateBefore=before["passed"],
-                              gateAfter=after["passed"], regressions=regress, gateTotal=after["total"],
+                              gateAfter=after["passed"], regressions=regress, gained=gained, gateTotal=after["total"],
                               modelCallsBefore=prev.get("avgModelCalls"), modelCallsAfter=after["avgModelCalls"],
-                              rejectReason=None if accepted else "gate success dropped", rule="SR(cand) >= SR(checkpoint)")
-            say(f"step {t}: gate {before['passed']} -> {after['passed']}/{after['total']}" + (f", regressions {regress}" if regress else ""))
+                              rejectReason=None if accepted else "gate success dropped", recheck=recheck,
+                              rule="SR(cand) >= SR(checkpoint)" + (", discordant tasks re-run with both" if recheck else ""))
+            say(f"step {t}: gate {before['passed']} -> {after['passed']}/{after['total']}"
+                + (f", regressions {regress}" if regress else "") + (f", gained {gained}" if gained else "")
+                + (f"; after recheck {ckpt_score:g} vs {cand_score:g}" if recheck else ""))
             if not accepted:
-                return self.reject(t, names, "gate", f"gate success dropped ({before['passed']} -> {after['passed']} "
-                                                     f"of {after['total']}); rolled back")
+                return self.reject(t, names, "gate", f"gate success dropped ({ckpt_score:g} -> {cand_score:g} of "
+                                                     f"{after['total']}{', after re-running discordant tasks' if recheck else ''}); rolled back")
         self.accept(t, cs, cand_entries, cdir, res, solved, after)
 
     def _bump_and_retire(self, keep: list[str] | None = None) -> list[str]:
@@ -492,6 +512,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--teacher-hours", choices=("any", "offpeak", "smart"), default="smart",
                    help="smart: during DeepSeek peak hours wait only if off-peak is ≤ 60 min away")
     p.add_argument("--ablate", action="append", choices=ABLATIONS, default=[])
+    p.add_argument("--no-gate-recheck", action="store_true", help="paper-exact single-run gate (no discordant recheck)")
     p.add_argument("--fake-teacher", action="store_true")
     p.add_argument("--stub-runner", action="store_true")
     p.add_argument("--no-heldout", action="store_true", help="skip the final held-out evaluation")
@@ -509,9 +530,10 @@ def main(argv: list[str] | None = None) -> int:
                        stub_runner=a.stub_runner, heldout_final=not a.no_heldout, max_steps=a.max_steps,
                        max_seconds=a.max_seconds, executor=a.executor, train_ids=_ids(a.train_tasks),
                        gate_ids=_ids(a.gate_tasks), heldout_ids=_ids(a.heldout_tasks),
-                       heldout_profile=a.heldout_profile, label=a.label)
+                       heldout_profile=a.heldout_profile, label=a.label, gate_recheck=not a.no_gate_recheck)
     if a.resume:
         saved = json.loads((GROWTH_ROOT / a.resume / "checkpoint.json").read_text())["config"]
+        saved.setdefault("gate_recheck", not a.no_gate_recheck)
         cfg = StreamConfig(**{**saved, "teacher_budget": a.teacher_budget, "teacher_hours": a.teacher_hours,
                               "max_hours": a.max_hours, "max_opt_steps": a.max_opt_steps})
     try:
