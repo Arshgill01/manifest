@@ -1,5 +1,5 @@
 {
-  "profile": "full",
+  "profile": "v2",
   "reference": "E1",
   "experiments": [
     {
@@ -11,23 +11,23 @@
       ]
     },
     {
-      "id": "E3",
-      "label": "hackathon harness (triage-fix)",
-      "log": ".manifest/runs/PENDING-e3.jsonl",
-      "splits": [
-        "heldout"
-      ]
-    },
-    {
-      "id": "E2",
-      "label": "h0: seed controller",
-      "log": ".manifest/runs/PENDING-e2.jsonl",
+      "id": "E5",
+      "label": "grown harness h* (growth #1, h3)",
+      "log": [
+        ".manifest/runs/20261005-082131-growth1.jsonl"
+      ],
       "splits": [
         "heldout"
       ]
     }
   ],
-  "growth": [],
+  "growth": [
+    {
+      "id": "E4",
+      "label": "growth #1 (v2 train 26 / gate 14)",
+      "log": ".manifest/runs/20261005-082131-growth1.jsonl"
+    }
+  ],
   "notes": [
     "E1's first run of ratekeeper-02 and ledgerly-04 hit an Ollama OOM kill (infra, excluded); the repair pass re-ran them."
   ]

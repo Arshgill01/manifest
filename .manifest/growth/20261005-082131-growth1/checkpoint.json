@@ -266,8 +266,8 @@
   }
  ],
  "teacherCost": 0.45159,
- "stopReason": null,
- "done": false,
+ "stopReason": "stream exhausted and the window is empty",
+ "done": true,
  "startedAt": 1791168692.988989,
  "gateCache": {
   "f7d3cbb115cece5e": {
@@ -421,5 +421,11 @@
   "passed": 9,
   "total": 14,
   "harness": 3
+ },
+ "heldout": {
+  "harness": 3,
+  "passed": 23,
+  "total": 38,
+  "avgModelCalls": 6.5
  }
 }
