@@ -1,0 +1,101 @@
+{
+  "skill": "root-cause-patch",
+  "read": [
+    "**"
+  ],
+  "write": [
+    "src/**"
+  ],
+  "commands": [
+    "python -m pytest"
+  ],
+  "network": false,
+  "findings": [
+    {
+      "rule": "touches-tests",
+      "severity": "low",
+      "file": "routine.py",
+      "line": 11,
+      "detail": "references test files 'tests/'"
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "This routine fixes failing test suites by having an LLM ('student') propose a search/replace patch to non-test source files, then verifies by re-running the suite; it reverts if the patch makes things worse."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "Process execution: it calls tools.run_tests() (twice or three times per invocation), which runs the project's test suite as a subprocess."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No network access is performed anywhere in this code; it does not open sockets, make HTTP requests, or contact external services."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No credential, API key, token, or environment variable reads (no os.environ/getenv, no secret files)."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No dynamic code execution (no eval, exec, compile, __import__, or pickle)."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "File reads occur via tools.read_file on paths taken from (a) state.files excluding tests, (b) failure frame 'file' fields, and (c) derived module paths. The failure-frame paths come from external test output and are not confined to the working directory, so reads could potentially escape the project"
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "File writes occur via tools.edit_file, which is guarded: the target must be one of the at-most-4 candidate non-test source files derived from state.files, and it explicitly refuses to edit 'tests/' or 'test_*' paths. The revert path also only touches that same target."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "The LLM response ('search'/'replace'/'file') is treated as untrusted-ish input but is validated: target must be in the candidate list, and a non-empty search string is required before editing."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "It limits itself to 2 attempts (MAX_TRIES), caps file text at 80 lines (CAP), and appends applied patches to state.patches for auditing."
+    },
+    {
+      "rule": "teacher-summary",
+      "severity": "info",
+      "file": "*",
+      "line": 0,
+      "detail": "No shell invocation, no subprocess spawning other than the test runner, no arbitrary command strings constructed from model output."
+    }
+  ],
+  "verdict": "ok",
+  "reasons": [],
+  "undeclared": {
+    "read": [],
+    "commands": [],
+    "network": false
+  },
+  "hosts": [],
+  "declaredFrom": "requested"
+}

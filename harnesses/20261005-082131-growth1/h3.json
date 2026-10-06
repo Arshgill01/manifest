@@ -1,0 +1,27 @@
+[
+  {
+    "name": "start",
+    "path": "routines/seed/start",
+    "source": "seed"
+  },
+  {
+    "name": "root-cause-patch",
+    "path": "harnesses/20261005-082131-growth1/routines/root-cause-patch/v1",
+    "source": "grown"
+  },
+  {
+    "name": "localize-patch",
+    "path": "harnesses/20261005-082131-growth1/routines/localize-patch/v1",
+    "source": "grown"
+  },
+  {
+    "name": "forced-patch",
+    "path": "harnesses/20261005-082131-growth1/routines/forced-patch/v1",
+    "source": "grown"
+  },
+  {
+    "name": "ask-student",
+    "path": "routines/seed/ask-student",
+    "source": "seed"
+  }
+]

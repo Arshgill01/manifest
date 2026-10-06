@@ -1,0 +1,36 @@
+{
+  "name": "root-cause-patch",
+  "trigger_description": "Fires early (after 2 student turns) whenever a failing suite remains, then again at most once every 3 student turns, up to 2 times per task. It interrupts the read-only spiral by presenting all remaining failures plus every source module imported by the failing test files and forcing one applied, verified patch.",
+  "requested_permissions": {
+    "read": [
+      "**"
+    ],
+    "write": [
+      "src/**"
+    ],
+    "commands": [
+      "python -m pytest"
+    ],
+    "network": false
+  },
+  "step": 17,
+  "teacher": "deepseek-flash",
+  "runId": "20261005-082131-growth1",
+  "rationale": "The window trace shows the recurring pathology exactly: the student reads 25 files (23 repeated calls) and even narrates the correct diagnosis, but never edits; only localize-patch ever commits, and its candidates come from a single failing test (availability/timerange/helpers), never from the other failing test files' modules (zones). The suite stayed at 6 failed and the run died at max_steps. The fix is one deterministic routine that fires early, before the spiral, shows the student ALL remaining failures plus the union of source modules imported by every failing test file plus the deepest source frame, forces exactly one verbatim search/replace patch, re-runs the suite, and reverts only if the patch made it strictly worse. It is ordered before localize-patch so it gets budget first; localize-patch still runs afterwards for cases it handles.",
+  "functionsChanged": {
+    "added": [
+      "_candidates",
+      "_frames",
+      "_is_test",
+      "_locate",
+      "_modules",
+      "_safe_read",
+      "applies",
+      "run"
+    ],
+    "modified": [],
+    "removed": [],
+    "other": true,
+    "edit": false
+  }
+}
