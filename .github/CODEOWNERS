@@ -1,0 +1,24 @@
+# Every path a Bot can change, and everything it can't, needs the maintainer's review.
+# Takes effect once branch protection on main requires code-owner review.
+
+# Evaluation core and the fleet's rules (no Bot lane may change these; see AGENTS.md)
+/SPEC.md            @Arshgill01
+/CONTRACT.md        @Arshgill01
+/CLAUDE.md          @Arshgill01
+/AGENTS.md          @Arshgill01
+/growth/            @Arshgill01
+/harness/           @Arshgill01
+/tasks/splits.json  @Arshgill01
+/.github/           @Arshgill01
+
+# Bot lanes (bot-lane-guard.yml checks the paths; Referee and the maintainer review the content)
+/.manifest/         @Arshgill01
+/harnesses/         @Arshgill01
+/experiments.json   @Arshgill01
+/RESULTS.md         @Arshgill01
+/tasks/             @Arshgill01
+/warden/            @Arshgill01
+/demo/              @Arshgill01
+/skills/            @Arshgill01
+/routines/          @Arshgill01
+/tests/             @Arshgill01
