@@ -1,0 +1,39 @@
+name: bot-lane-guard
+
+# Keeps the Bot fleet (AGENTS.md) inside its lanes: a bot/<lane>/<ticket> branch may only change that
+# lane's paths and never the evaluation core. Edits to this workflow or .github/scripts/ need CODEOWNERS
+# review, because a pull_request run uses the PR's own copy of them.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard self-test (fixture cases for every lane)
+        run: bash .github/scripts/lane-guard-selftest.sh
+
+  lanes:
+    needs: selftest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check changed paths against the branch's lane
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Three-dot: only this branch's changes. --no-renames: a rename shows both paths, so moving a
+          # protected file out of the way is still caught.
+          git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA" | tee /tmp/changed.txt
+          bash .github/scripts/lane-guard.sh "$HEAD_REF" < /tmp/changed.txt
